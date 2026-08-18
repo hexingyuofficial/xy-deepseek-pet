@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "xy-placeholder-complete",
+      "displayName": "Placeholder Complete",
+      "file": "placeholder-complete.wav",
+      "channels": [
+        "turnComplete"
+      ],
+      "author": "XY DeepSeek Pet contributors",
+      "source": "original-project-asset",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Deterministically generated mono 44.1 kHz PCM placeholder tone.",
+      "sha256": "0bf0f52081fa1cc2ba33a132c9ded9b24dcdf1d1fd62ae57ddc8d5e3e1a4af5d"
+    },
+    {
+      "id": "xy-placeholder-tool-success",
+      "displayName": "Placeholder Tool Success",
+      "file": "placeholder-tool-success.wav",
+      "channels": [
+        "toolSuccess"
+      ],
+      "author": "XY DeepSeek Pet contributors",
+      "source": "original-project-asset",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Deterministically generated mono 44.1 kHz PCM placeholder tone.",
+      "sha256": "959c0e20a268be602cc4f1fb417675ceaa6d6287474707d9b1a03e415d9058f8"
+    },
+    {
+      "id": "xy-placeholder-tool-failure",
+      "displayName": "Placeholder Tool Failure",
+      "file": "placeholder-tool-failure.wav",
+      "channels": [
+        "toolFailure"
+      ],
+      "author": "XY DeepSeek Pet contributors",
+      "source": "original-project-asset",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Deterministically generated mono 44.1 kHz PCM placeholder tone.",
+      "sha256": "4a4e877b34fa8702ee3ed5c3f9d8f78de685d49fbf8a91fcbbfd32280aa3a7db"
+    }
+  ]
+}

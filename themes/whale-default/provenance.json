@@ -1,0 +1,53 @@
+{
+  "theme": "whale-default",
+  "status": "0.1.0 release asset",
+  "source": {
+    "creator": "XY DeepSeek Pet project author",
+    "method": "AI-assisted animation, chroma-key cleanup and PNG sequence export in DaVinci Resolve",
+    "originalCanvas": "1080x1080 RGBA",
+    "originalFrameRate": 30,
+    "sourceLocation": "Author-maintained source archive outside the repository"
+  },
+  "processing": {
+    "tool": "FFmpeg 6.0",
+    "output": "192x192 lossless WebP sprite sheets at a common 30 fps playback rate",
+    "notes": "NAS source files were not modified. Sprite sheets use up to 60 columns. Loops keep their source frame sequences. Long one-shots are resampled to 61 frames (about 2.03 seconds), always retaining their first and last source frames. Completion reveals retain the final 20 percent most densely; thunder leap uses uniform sampling. Failure enter and exit allocate 12.5 percent of the output to a fast opening, about 40 percent to medium motion, and the remainder to a dense ending. The six authored tap frames are retained in full and each is displayed for two 30 fps frames."
+  },
+  "animations": {
+    "idle": 121,
+    "sleep": 121,
+    "walk": 121,
+    "thinkingEnter": 61,
+    "thinking": 44,
+    "tap": 12,
+    "errorEnter": 61,
+    "errorLoop": 1,
+    "errorExit": 61,
+    "completeEating": 61,
+    "completeSaint": 61,
+    "completeBranches": 61,
+    "completeThunderLeap": 61,
+    "completeBlindfold": 61,
+    "completeBoot": 61,
+    "completeTerminator": 61,
+    "completeFries": 61,
+    "completeTreasureJackpot": 61
+  },
+  "sourceFrameCounts": {
+    "tap": 6,
+    "thinkingEnter": 77,
+    "errorEnter": 97,
+    "errorExit": 97,
+    "completeEating": 121,
+    "completeSaint": 130,
+    "completeBranches": 121,
+    "completeThunderLeap": 121,
+    "completeBlindfold": 121,
+    "completeBoot": 121,
+    "completeTerminator": 121,
+    "completeFries": 126,
+    "completeTreasureJackpot": 130
+  },
+  "license": "MIT",
+  "notes": "Working reuses the authored thinking loop. Offline uses the required idle compatibility fallback, and needsInput is omitted so the renderer falls back to idle."
+}

@@ -1,0 +1,77 @@
+{
+  "name": "xy-deepseek-sounds",
+  "version": "0.1.0",
+  "description": "Sound notifications for DeepSeek Harness",
+  "keywords": ["deepseek", "deepseek-harness", "cordis", "notifications", "sounds"],
+  "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme",
+  "bugs": { "url": "https://github.com/hexingyuofficial/xy-deepseek-pet/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/hexingyuofficial/xy-deepseek-pet.git", "directory": "packages/sounds" },
+  "engines": { "node": ">=22" },
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": { "access": "public" },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./library": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./typert": "./lib/typert.js",
+    "./remote": "./lib/remote.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "runtime",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "assets": "node scripts/generate-placeholder-sounds.mjs",
+    "build": "pnpm assets && tsc -p tsconfig.json && node scripts/build.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "music-metadata": "^11.14.0",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.6"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-agent": { "optional": true },
+    "@deepseek-ai/dsh-session": { "optional": true },
+    "@deepseek-ai/dsh-system-prompt": { "optional": true },
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "@deepseek-ai/dsh-typert-protocol": { "optional": true }
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.6",
+    "@types/react": "~18.3.1",
+    "esbuild": "^0.25.9",
+    "react": "^18.3.1",
+    "vitest": "^3.2.4"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ]
+    }
+  }
+}

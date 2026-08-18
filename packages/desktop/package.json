@@ -1,0 +1,40 @@
+{
+  "name": "@xy-deepseek-pet/desktop",
+  "version": "0.1.0",
+  "description": "Transparent desktop companion runtime for XY DeepSeek Pet",
+  "keywords": ["deepseek", "desktop-pet", "electron", "petdex"],
+  "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme",
+  "bugs": { "url": "https://github.com/hexingyuofficial/xy-deepseek-pet/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/hexingyuofficial/xy-deepseek-pet.git", "directory": "packages/desktop" },
+  "engines": { "node": ">=22" },
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/main.js",
+  "exports": {
+    ".": "./dist/main.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "xy-deepseek-pet-desktop": "./bin/cli.mjs"
+  },
+  "files": ["bin", "dist", "README.md"],
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build.mjs",
+    "dev": "pnpm build && electron dist/main.js --dev",
+    "start": "electron dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "electron": "^43.4.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@xy-deepseek-pet/protocol": "workspace:*",
+    "ajv": "8.17.1",
+    "fflate": "^0.8.2",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.9",
+    "vitest": "^3.2.4"
+  }
+}

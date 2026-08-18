@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xy-deepseek-pet:theme:v2",
+  "title": "XY DeepSeek Pet theme",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "version", "license", "canvas", "animations"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "enum": [1, 2] },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 64 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+    "license": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "author": { "type": "string", "maxLength": 120 },
+    "walkBaseFacing": { "enum": ["left", "right"] },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 32, "maximum": 2048 },
+        "height": { "type": "integer", "minimum": 32, "maximum": 2048 }
+      }
+    },
+    "animations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idle", "walk", "thinking", "working", "complete", "error", "offline"],
+      "properties": {
+        "idle": { "$ref": "#/$defs/animation" },
+        "sleep": { "$ref": "#/$defs/animation" },
+        "walk": { "$ref": "#/$defs/animation" },
+        "walkLeft": { "$ref": "#/$defs/animation" },
+        "walkRight": { "$ref": "#/$defs/animation" },
+        "thinking": { "$ref": "#/$defs/animation" },
+        "thinkingEnter": { "$ref": "#/$defs/animation" },
+        "working": { "$ref": "#/$defs/animation" },
+        "complete": { "$ref": "#/$defs/animation" },
+        "error": { "$ref": "#/$defs/animation" },
+        "offline": { "$ref": "#/$defs/animation" },
+        "needsInput": { "$ref": "#/$defs/animation" },
+        "tap": { "$ref": "#/$defs/animation" }
+      }
+    },
+    "completionVariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regular"],
+      "properties": {
+        "regular": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 600,
+          "items": { "$ref": "#/$defs/animation" }
+        },
+        "jackpot": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 600,
+          "items": { "$ref": "#/$defs/animation" }
+        }
+      }
+    },
+    "errorSequences": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 600,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enter", "loop", "exit"],
+        "properties": {
+          "enter": { "$ref": "#/$defs/animation" },
+          "loop": { "$ref": "#/$defs/animation" },
+          "exit": { "$ref": "#/$defs/animation" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![a-zA-Z][a-zA-Z0-9+.-]*:).+\\.(?:png|webp|avif)$"
+    },
+    "frameDurations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 600,
+      "items": { "type": "integer", "minimum": 16, "maximum": 10000 }
+    },
+    "frameAnimation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "files", "loop"],
+      "properties": {
+        "kind": { "const": "frames" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 600,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/safePath" }
+        },
+        "fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+        "frameDurationsMs": { "$ref": "#/$defs/frameDurations" },
+        "pacing": { "enum": ["fast-start-showcase"] },
+        "loop": { "type": "boolean" }
+      },
+      "oneOf": [
+        {
+          "required": ["fps"],
+          "properties": { "fps": {} }
+        },
+        {
+          "required": ["frameDurationsMs"],
+          "properties": { "frameDurationsMs": {} }
+        }
+      ]
+    },
+    "sheetAnimation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "file", "frameWidth", "frameHeight", "frameCount", "columns", "loop"],
+      "properties": {
+        "kind": { "const": "sheet" },
+        "file": { "$ref": "#/$defs/safePath" },
+        "frameWidth": { "type": "integer", "minimum": 1, "maximum": 2048 },
+        "frameHeight": { "type": "integer", "minimum": 1, "maximum": 2048 },
+        "frameCount": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "columns": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "frameOffset": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+        "frameDurationsMs": { "$ref": "#/$defs/frameDurations" },
+        "pacing": { "enum": ["fast-start-showcase"] },
+        "loop": { "type": "boolean" }
+      },
+      "oneOf": [
+        {
+          "required": ["fps"],
+          "properties": { "fps": {} }
+        },
+        {
+          "required": ["frameDurationsMs"],
+          "properties": { "frameDurationsMs": {} }
+        }
+      ]
+    },
+    "animation": {
+      "oneOf": [
+        { "$ref": "#/$defs/frameAnimation" },
+        { "$ref": "#/$defs/sheetAnimation" }
+      ]
+    }
+  }
+}

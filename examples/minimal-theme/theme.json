@@ -1,0 +1,19 @@
+{
+  "$schema": "../../schemas/theme.schema.json",
+  "schemaVersion": 1,
+  "id": "minimal-whale",
+  "name": "Minimal Whale",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "XY DeepSeek Pet contributors",
+  "canvas": { "width": 192, "height": 192 },
+  "animations": {
+    "idle": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": true },
+    "walk": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": true },
+    "thinking": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": true },
+    "working": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": true },
+    "complete": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": false },
+    "error": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": false },
+    "offline": { "kind": "frames", "files": ["sprites/whale.webp"], "frameDurationsMs": [1000], "loop": true }
+  }
+}

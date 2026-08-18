@@ -1,0 +1,246 @@
+{
+  "$schema": "../../schemas/theme.schema.json",
+  "schemaVersion": 2,
+  "id": "whale-default",
+  "name": "XY 小鲸鱼",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "XY DeepSeek Pet contributors",
+  "walkBaseFacing": "left",
+  "canvas": {
+    "width": 192,
+    "height": 192
+  },
+  "animations": {
+    "idle": {
+      "kind": "sheet",
+      "file": "sprites/idle/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 121,
+      "columns": 60,
+      "fps": 30,
+      "loop": true
+    },
+    "sleep": {
+      "kind": "sheet",
+      "file": "sprites/sleep/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 121,
+      "columns": 60,
+      "fps": 30,
+      "loop": true
+    },
+    "walk": {
+      "kind": "sheet",
+      "file": "sprites/walk/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 121,
+      "columns": 60,
+      "fps": 30,
+      "loop": true
+    },
+    "thinkingEnter": {
+      "kind": "sheet",
+      "file": "sprites/thinking-enter/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 61,
+      "columns": 60,
+      "fps": 30,
+      "loop": false
+    },
+    "thinking": {
+      "kind": "sheet",
+      "file": "sprites/thinking/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 44,
+      "columns": 44,
+      "fps": 30,
+      "loop": true
+    },
+    "working": {
+      "kind": "sheet",
+      "file": "sprites/thinking/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 44,
+      "columns": 44,
+      "fps": 30,
+      "loop": true
+    },
+    "tap": {
+      "kind": "sheet",
+      "file": "sprites/tap/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 4,
+      "columns": 4,
+      "fps": 30,
+      "loop": false
+    },
+    "complete": {
+      "kind": "sheet",
+      "file": "sprites/complete/regular/eating/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 61,
+      "columns": 60,
+      "fps": 30,
+      "loop": false
+    },
+    "error": {
+      "kind": "sheet",
+      "file": "sprites/error/sequence-01/enter/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 61,
+      "columns": 60,
+      "fps": 30,
+      "loop": false
+    },
+    "offline": {
+      "kind": "sheet",
+      "file": "sprites/idle/sheet.webp",
+      "frameWidth": 192,
+      "frameHeight": 192,
+      "frameCount": 121,
+      "columns": 60,
+      "fps": 30,
+      "loop": true
+    }
+  },
+  "completionVariants": {
+    "regular": [
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/eating/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/saint/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/branches/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/thunder-leap/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/blindfold/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/boot/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/terminator/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/regular/fries/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      }
+    ],
+    "jackpot": [
+      {
+        "kind": "sheet",
+        "file": "sprites/complete/jackpot/treasure/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      }
+    ]
+  },
+  "errorSequences": [
+    {
+      "enter": {
+        "kind": "sheet",
+        "file": "sprites/error/sequence-01/enter/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      },
+      "loop": {
+        "kind": "sheet",
+        "file": "sprites/error/sequence-01/loop/frame.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 1,
+        "columns": 1,
+        "fps": 30,
+        "loop": true
+      },
+      "exit": {
+        "kind": "sheet",
+        "file": "sprites/error/sequence-01/exit/sheet.webp",
+        "frameWidth": 192,
+        "frameHeight": 192,
+        "frameCount": 61,
+        "columns": 60,
+        "fps": 30,
+        "loop": false
+      }
+    }
+  ]
+}
