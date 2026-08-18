@@ -6,9 +6,9 @@
   "license": "MIT",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "build": "pnpm --filter @xy-deepseek-pet/protocol build && pnpm --filter @xy-deepseek-pet/desktop build && pnpm --filter xy-deepseek-pet build && pnpm --filter xy-deepseek-sounds build",
-    "dev": "pnpm --filter @xy-deepseek-pet/desktop dev",
-    "start": "pnpm --filter @xy-deepseek-pet/desktop start",
+    "build": "pnpm --filter @xy-deepseek-pet/protocol build && pnpm --filter xy-deepseek-pet-desktop build && pnpm --filter xy-deepseek-pet build && pnpm --filter xy-deepseek-sounds build",
+    "dev": "pnpm --filter xy-deepseek-pet-desktop dev",
+    "start": "pnpm --filter xy-deepseek-pet-desktop start",
     "test": "vitest run",
     "verify": "pnpm verify:repository && pnpm verify:theme",
     "verify:repository": "node scripts/verify-repository.mjs",
@@ -19,5 +19,21 @@
     "ajv": "8.17.1",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hexingyuofficial/xy-deepseek-pet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hexingyuofficial/xy-deepseek-pet/issues"
+  },
+  "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme"
 }

@@ -1,6 +1,6 @@
 # xy-deepseek-pet
 
-DeepSeek Harness 的非官方开源桌宠插件，包含 Cordis Host 桥、Harness Web 设置界面，并自动安装 `@xy-deepseek-pet/desktop` Electron 运行时。
+DeepSeek Harness 的非官方开源桌宠插件，包含 Cordis Host 桥、Harness Web 设置界面，并自动安装 `xy-deepseek-pet-desktop` Electron 运行时。
 
 ```sh
 dsh plugin --profile web add xy-deepseek-pet
@@ -15,7 +15,7 @@ dsh web
 
 ---
 
-Unofficial open-source DeepSeek Harness desktop companion. This package provides the Cordis Host bridge and Harness Web settings, and installs `@xy-deepseek-pet/desktop` automatically.
+Unofficial open-source DeepSeek Harness desktop companion. This package provides the Cordis Host bridge and Harness Web settings, and installs `xy-deepseek-pet-desktop` automatically.
 
 After restarting Harness, use **Open pet** in the sidebar and configure it under **General settings > Desktop pet**. The bounded `xy_pet` agent tool can open the pet, inspect status, select or import validated themes, and change scale without exposing credentials, hidden reasoning, transcripts, or raw tool payloads.
 

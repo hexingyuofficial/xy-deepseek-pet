@@ -29,7 +29,7 @@ dsh plugin --profile web add xy-deepseek-pet
 dsh web
 ```
 
-重启 Harness 后，侧边栏会出现“打开桌宠”。首次安装不会自动弹出桌宠；可在通用设置里开启“启动 Harness 时自动打开”。桌面运行时 `@xy-deepseek-pet/desktop` 会随主插件自动安装，不需要单独添加。
+重启 Harness 后，侧边栏会出现“打开桌宠”。首次安装不会自动弹出桌宠；可在通用设置里开启“启动 Harness 时自动打开”。桌面运行时 `xy-deepseek-pet-desktop` 会随主插件自动安装，不需要单独添加。
 
 提示音是可选的，可单独安装，也可和桌宠一起安装：
 
@@ -71,13 +71,13 @@ pnpm verify
 本地启动桌宠：
 
 ```sh
-pnpm --filter @xy-deepseek-pet/desktop start
+pnpm --filter xy-deepseek-pet-desktop start
 ```
 
 确定性预览失败进入、停留和退场：
 
 ```sh
-pnpm --filter @xy-deepseek-pet/desktop dev -- --demo-error
+pnpm --filter xy-deepseek-pet-desktop dev -- --demo-error
 ```
 
 架构、Cordis 接入和安全扩展接口分别见[架构](./docs/architecture.md)、[Cordis 集成](./docs/cordis-integration.md)和[插件 API](./docs/plugin-api.md)。

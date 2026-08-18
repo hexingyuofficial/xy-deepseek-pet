@@ -1,5 +1,5 @@
 {
-  "name": "@xy-deepseek-pet/desktop",
+  "name": "xy-deepseek-pet-desktop",
   "version": "0.1.0",
   "description": "Transparent desktop companion runtime for XY DeepSeek Pet",
   "keywords": ["deepseek", "desktop-pet", "electron", "petdex"],

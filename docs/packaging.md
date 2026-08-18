@@ -5,7 +5,7 @@ XY DeepSeek Pet 0.1.0 publishes three packages from one pnpm workspace:
 | Package | Purpose | Installed directly? |
 | --- | --- | --- |
 | `xy-deepseek-pet` | Cordis Host, Harness Web client, launcher runtime | Yes |
-| `@xy-deepseek-pet/desktop` | Electron runtime, schema, default whale theme | Pulled by `xy-deepseek-pet` |
+| `xy-deepseek-pet-desktop` | Electron runtime, schema, default whale theme | Pulled by `xy-deepseek-pet` |
 | `xy-deepseek-sounds` | Optional sound-only Cordis bundle | Yes, independently |
 
 ## Harness package contract
@@ -21,7 +21,7 @@ Harness forwards plugin package operations to the selected profile's pnpm projec
 
 ## Desktop runtime
 
-The main plugin depends on the exact matching `@xy-deepseek-pet/desktop` version. Its small CLI resolves the package-local Electron executable, then starts `dist/main.js`. The desktop tarball contains:
+The main plugin depends on the exact matching `xy-deepseek-pet-desktop` version. Its small CLI resolves the package-local Electron executable, then starts `dist/main.js`. The desktop tarball contains:
 
 - sandboxed renderer, preload and main-process bundles;
 - native theme schema;
@@ -62,7 +62,7 @@ Run `pnpm pack` in each public package and install all resulting tarballs into a
 
 Publish in dependency order:
 
-1. `@xy-deepseek-pet/desktop@0.1.0`
+1. `xy-deepseek-pet-desktop@0.1.0`
 2. `xy-deepseek-pet@0.1.0`
 3. `xy-deepseek-sounds@0.1.0`
 

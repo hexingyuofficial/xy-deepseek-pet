@@ -54,7 +54,7 @@ const require = createRequire(import.meta.url)
 
 function installedDesktop(): DesktopLaunch | undefined {
   try {
-    const packageRoot = dirname(require.resolve('@xy-deepseek-pet/desktop/package.json'))
+    const packageRoot = dirname(require.resolve('xy-deepseek-pet-desktop/package.json'))
     const cli = join(packageRoot, 'bin', 'cli.mjs')
     const resourceRoot = join(packageRoot, 'dist', 'resources')
     if (!existsSync(cli) || !existsSync(join(resourceRoot, 'schemas', 'theme.schema.json'))) return undefined
