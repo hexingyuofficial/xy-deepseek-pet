@@ -1,4 +1,4 @@
-# xy-deepseek-pet-desktop
+# xy-deepseek-desktop
 
 `xy-deepseek-pet` 使用的 Electron 桌面运行时。普通用户无需单独安装；主 Cordis 插件会自动依赖它。
 
@@ -7,14 +7,14 @@
 开发启动：
 
 ```sh
-pnpm --filter xy-deepseek-pet-desktop build
-pnpm --filter xy-deepseek-pet-desktop start
+pnpm --filter xy-deepseek-desktop build
+pnpm --filter xy-deepseek-desktop start
 ```
 
 失败动画测试：
 
 ```sh
-pnpm --filter xy-deepseek-pet-desktop dev -- --demo-error
+pnpm --filter xy-deepseek-desktop dev -- --demo-error
 ```
 
 0.1.0 已验证 macOS 本地运行；Windows 共用源码并有构建与进程参数测试，但交互式 GUI 烟测尚未完成。当前包未签名、未公证。

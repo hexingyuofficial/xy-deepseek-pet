@@ -69,4 +69,4 @@ Raw Harness event shapes must not cross the adapter boundary.
 
 ## Distribution boundary
 
-`xy-deepseek-pet` owns the Host adapter, Web client, bundle patch, launcher runtime and icon. It depends on the matching `xy-deepseek-pet-desktop` package, which carries compiled Electron application code, the schema and default theme; Electron's official npm dependency supplies the platform binary. `xy-deepseek-sounds` remains independent and does not install Electron. See [packaging](./packaging.md).
+`xy-deepseek-pet` owns the Host adapter, Web client, bundle patch, launcher runtime and icon. It depends on the matching `xy-deepseek-desktop` package, which carries compiled Electron application code, the schema and default theme; Electron's official npm dependency supplies the platform binary. `xy-deepseek-sounds` remains independent and does not install Electron. See [packaging](./packaging.md).

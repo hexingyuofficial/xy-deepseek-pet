@@ -29,7 +29,7 @@ dsh plugin --profile web add xy-deepseek-pet
 dsh web
 ```
 
-Restart Harness, then use **Open pet** in the sidebar. Automatic startup is off by default and can be enabled under **General settings > Desktop pet**. The `xy-deepseek-pet-desktop` runtime is installed automatically with the main plugin.
+Restart Harness, then use **Open pet** in the sidebar. Automatic startup is off by default and can be enabled under **General settings > Desktop pet**. The `xy-deepseek-desktop` runtime is installed automatically with the main plugin.
 
 Sounds are optional and independently installable:
 
@@ -71,13 +71,13 @@ pnpm verify
 Run the desktop companion locally:
 
 ```sh
-pnpm --filter xy-deepseek-pet-desktop start
+pnpm --filter xy-deepseek-desktop start
 ```
 
 Preview the deterministic failure enter, loop, and exit sequence:
 
 ```sh
-pnpm --filter xy-deepseek-pet-desktop dev -- --demo-error
+pnpm --filter xy-deepseek-desktop dev -- --demo-error
 ```
 
 See [architecture](./docs/architecture.md), [Cordis integration](./docs/cordis-integration.md), and the [plugin API](./docs/plugin-api.md) for implementation and extension details.

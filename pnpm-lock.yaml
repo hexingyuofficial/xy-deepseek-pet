@@ -57,7 +57,7 @@ importers:
       ws:
         specifier: ^8.18.3
         version: 8.21.3
-      xy-deepseek-pet-desktop:
+      xy-deepseek-desktop:
         specifier: workspace:0.1.0
         version: link:../desktop
       zod:

@@ -16,7 +16,7 @@ const lockPath = join(runtimeRoot, 'launcher.lock')
 const clientOpenPath = join(runtimeRoot, 'client-opened-at')
 const serviceLogPath = join(runtimeRoot, 'dsh.log')
 const launcherLogPath = join(runtimeRoot, 'launcher.log')
-const desktopPackageRoot = dirname(require.resolve('xy-deepseek-pet-desktop/package.json'))
+const desktopPackageRoot = dirname(require.resolve('xy-deepseek-desktop/package.json'))
 const desktopCommand = process.execPath
 const desktopEntry = join(desktopPackageRoot, 'bin', 'cli.mjs')
 

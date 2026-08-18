@@ -1,5 +1,5 @@
 {
-  "name": "xy-deepseek-pet-desktop",
+  "name": "xy-deepseek-desktop",
   "version": "0.1.0",
   "description": "Transparent desktop companion runtime for XY DeepSeek Pet",
   "keywords": ["deepseek", "desktop-pet", "electron", "petdex"],
@@ -15,7 +15,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "xy-deepseek-pet-desktop": "./bin/cli.mjs"
+    "xy-deepseek-desktop": "./bin/cli.mjs"
   },
   "files": ["bin", "dist", "README.md"],
   "publishConfig": { "access": "public" },

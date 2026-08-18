@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "xy-deepseek-pet-desktop": "workspace:0.1.0",
+    "xy-deepseek-desktop": "workspace:0.1.0",
     "@deepseek-ai/cordis": "^4.0.1",
     "ws": "^8.18.3",
     "zod": "^4.4.3"

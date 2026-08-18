@@ -83,7 +83,7 @@ for (const asset of soundProvenance.assets) {
 
 const publicPackages = [
   ['packages/harness-plugin/package.json', 'xy-deepseek-pet'],
-  ['packages/desktop/package.json', 'xy-deepseek-pet-desktop'],
+  ['packages/desktop/package.json', 'xy-deepseek-desktop'],
   ['packages/sounds/package.json', 'xy-deepseek-sounds'],
 ]
 for (const [file, expectedName] of publicPackages) {
@@ -97,7 +97,7 @@ for (const [file, expectedName] of publicPackages) {
 }
 
 const petPackage = JSON.parse(await readFile(new URL('../packages/harness-plugin/package.json', import.meta.url), 'utf8'))
-if (petPackage.dependencies?.['xy-deepseek-pet-desktop'] !== 'workspace:0.1.0') {
+if (petPackage.dependencies?.['xy-deepseek-desktop'] !== 'workspace:0.1.0') {
   throw new Error('xy-deepseek-pet must publish an exact 0.1.0 desktop runtime dependency')
 }
 for (const entry of ['assets', 'lib', 'runtime/launch.mjs', 'runtime/launcher-utils.mjs']) {
