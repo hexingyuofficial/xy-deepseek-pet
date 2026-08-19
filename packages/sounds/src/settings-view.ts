@@ -18,15 +18,18 @@ function toBase64(buffer: ArrayBuffer): string { const bytes = new Uint8Array(bu
 function browserUsesChinese(): boolean { return typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') }
 
 const copy = {
-  en: { title: 'Sound notifications', description: 'Task and tool result sounds', mute: 'Mute all', volume: 'Volume', turnComplete: 'Task complete', toolSuccess: 'Tool succeeded', toolFailure: 'Tool failed', enabled: 'Enabled', preview: 'Preview', delete: 'Delete', choose: 'Choose sound', drop: 'Drop your sound here', browse: 'Choose file', restore: 'Restore built-ins', saved: 'Saved', loading: 'Loading…', custom: 'Custom', behavior: 'Behavior', quietShort: 'Silence short tasks', frequency: 'Tool frequency', quiet: 'Quiet', normal: 'Normal', every: 'Every result', seconds: 's' },
-  zh: { title: '提示音', description: '任务与工具结果的声音提醒', mute: '全部静音', volume: '音量', turnComplete: '任务完成', toolSuccess: '工具成功', toolFailure: '工具失败', enabled: '启用', preview: '试听', delete: '删除', choose: '选择声音', drop: '拖入你喜欢的声音', browse: '选择文件', restore: '恢复内置声音', saved: '已保存', loading: '加载中…', custom: '自定义', behavior: '提醒行为', quietShort: '短任务不提醒', frequency: '工具提示频率', quiet: '安静', normal: '正常', every: '每次结果', seconds: '秒' },
+  en: { title: 'Sound notifications', mute: 'Mute all', masterVolume: 'Master volume', volume: 'Volume', more: 'More settings', turnComplete: 'Task complete', toolSuccess: 'Tool succeeded', toolFailure: 'Tool failed', enabled: 'Enabled', preview: 'Preview', delete: 'Delete', choose: 'Choose sound', drop: 'Drop your sound here', browse: 'Choose file', restore: 'Restore built-ins', saved: 'Saved', loading: 'Loading…', custom: 'Custom', behavior: 'Behavior', quietShort: 'Silence short tasks', frequency: 'Tool frequency', quiet: 'Quiet', normal: 'Normal', every: 'Every result', seconds: 's' },
+  zh: { title: '提示音', mute: '全部静音', masterVolume: '总体音量', volume: '音量', more: '更多设置', turnComplete: '任务完成', toolSuccess: '工具成功', toolFailure: '工具失败', enabled: '启用', preview: '试听', delete: '删除', choose: '选择声音', drop: '拖入你喜欢的声音', browse: '选择文件', restore: '恢复内置声音', saved: '已保存', loading: '加载中…', custom: '自定义', behavior: '提醒行为', quietShort: '短任务不提醒', frequency: '工具提示频率', quiet: '安静', normal: '正常', every: '每次结果', seconds: '秒' },
 } as const
 
 const styles: Record<string, React.CSSProperties> = {
   root: { alignSelf: 'start', width: '100%', minHeight: 0, color: 'var(--dsw-alias-label-primary, #f4f5f6)', marginTop: 8, borderTop: '1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.1))' },
-  summary: { minHeight: 42, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', listStyle: 'none', fontSize: 13, fontWeight: 600 },
+  header: { minHeight: 42, display: 'flex', alignItems: 'center' },
+  title: { margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, letterSpacing: 0 },
+  moreSummary: { minHeight: 38, display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', listStyle: 'none', fontSize: 13 },
   disclosure: { display: 'inline-block', width: 12, flex: '0 0 12px', fontSize: 10, lineHeight: 1, textAlign: 'center' },
-  content: { padding: '0 0 8px 14px' },
+  content: { padding: '0 0 8px' },
+  moreBody: { padding: '0 0 4px 18px' },
   row: { display: 'grid', gridTemplateColumns: 'minmax(110px, 1fr) minmax(170px, 1.4fr)', gap: 12, alignItems: 'center', minHeight: 42 },
   channel: { padding: '2px 0', borderTop: '1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.07))' },
   channelSummary: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 40, cursor: 'pointer', fontSize: 13 },
@@ -50,7 +53,7 @@ export function SoundSettings({ remote, locale, embedded = false }: { remote: So
   const [status, setStatus] = useState<string>(c.loading)
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState<SoundChannel>()
-  const [open, setOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const fileInputs = useRef<Partial<Record<SoundChannel, HTMLInputElement | null>>>({})
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
   const saveRevision = useRef(0)
@@ -74,8 +77,10 @@ export function SoundSettings({ remote, locale, embedded = false }: { remote: So
     } catch (reason) { setError(String(reason)); setStatus('') }
   }, [c.saved, draft, locale, remote, snapshot])
 
-  if (!snapshot || !draft) return React.createElement('div', { style: { ...styles.root, display: 'flex', alignItems: 'center', minHeight: 42, maxHeight: 42, overflow: 'hidden', fontSize: 13 } }, error || status)
-  const range = (value: number, onChange: (value: number) => void, max = 1, step = 0.05) => React.createElement('input', { type: 'range', min: 0, max, step, value, style: styles.range, onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(Number(event.currentTarget.value)) })
+  if (!snapshot || !draft) return React.createElement('div', { style: { ...styles.root, ...(embedded ? {} : { borderTop: 0 }) } },
+    React.createElement('div', { style: styles.header }, React.createElement('h3', { style: styles.title }, c.title)),
+    React.createElement('div', { style: error ? styles.error : styles.status, role: 'status' }, error || status))
+  const range = (value: number, onChange: (value: number) => void, max = 1, step = 0.05, label: string = c.volume) => React.createElement('input', { type: 'range', min: 0, max, step, value, style: styles.range, 'aria-label': label, onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(Number(event.currentTarget.value)) })
   const frequency = draft.toolCooldownMs >= 4_000 ? 'quiet' : draft.toolCooldownMs === 0 && draft.toolCoalesceMs === 0 ? 'every' : 'normal'
   const setFrequency = (value: 'quiet' | 'normal' | 'every') => mutate((next) => { if (value === 'quiet') { next.toolCooldownMs = 5_000; next.toolCoalesceMs = 800 } else if (value === 'every') { next.toolCooldownMs = 0; next.toolCoalesceMs = 0 } else { next.toolCooldownMs = 1_500; next.toolCoalesceMs = 400 } })
 
@@ -94,17 +99,21 @@ export function SoundSettings({ remote, locale, embedded = false }: { remote: So
       ))
   })
 
-  return React.createElement('details', { open, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setOpen(event.currentTarget.open), style: { ...styles.root, ...(embedded ? {} : { borderTop: 0 }), ...(!open ? { maxHeight: 42, overflow: 'hidden' } : {}) } },
-    React.createElement('summary', { style: styles.summary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, open ? '▼' : '▶'), React.createElement('span', null, `${c.title} · ${c.description}`)),
+  return React.createElement('div', { style: { ...styles.root, ...(embedded ? {} : { borderTop: 0 }) } },
+    React.createElement('div', { style: styles.header }, React.createElement('h3', { style: styles.title }, c.title)),
     React.createElement('div', { style: styles.content },
+      React.createElement('div', { style: styles.row }, `${c.masterVolume} · ${Math.round(draft.masterVolume * 100)}%`, range(draft.masterVolume, (value) => mutate((next) => { next.masterVolume = value }), 1, 0.05, c.masterVolume)),
       React.createElement('div', { style: styles.row }, c.mute, React.createElement('input', { type: 'checkbox', style: styles.check, checked: draft.masterMute, onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const checked = event.currentTarget.checked; mutate((next) => { next.masterMute = checked }) } })),
-      React.createElement('div', { style: styles.row }, `${c.volume} · ${Math.round(draft.masterVolume * 100)}%`, range(draft.masterVolume, (value) => mutate((next) => { next.masterVolume = value }))),
-      ...channels,
-      React.createElement('details', { style: styles.channel }, React.createElement('summary', { style: styles.channelSummary }, c.behavior), React.createElement('div', { style: styles.channelBody },
-        React.createElement('div', { style: styles.row }, `${c.quietShort} · ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => { next.minimumTurnDurationMs = value }), 60_000, 500)),
-        React.createElement('div', { style: styles.row }, c.frequency, React.createElement('div', { style: styles.controls }, ...(['quiet', 'normal', 'every'] as const).map((value) => React.createElement('button', { key: value, type: 'button', style: { ...styles.button, ...(frequency === value ? styles.active : {}) }, onClick: () => setFrequency(value) }, c[value])))),
-        React.createElement('button', { type: 'button', style: styles.button, onClick: async () => { try { const value = remoteValue(await remote.restoreBuiltIns()); setSnapshot(value); setDraft(value.config); setStatus(c.saved) } catch (reason) { setError(String(reason)) } } }, c.restore),
-      )),
+      React.createElement('details', { open: moreOpen, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setMoreOpen(event.currentTarget.open) },
+        React.createElement('summary', { style: styles.moreSummary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, moreOpen ? '▼' : '▶'), React.createElement('span', null, c.more)),
+        React.createElement('div', { style: styles.moreBody },
+          ...channels,
+          React.createElement('details', { style: styles.channel }, React.createElement('summary', { style: styles.channelSummary }, c.behavior), React.createElement('div', { style: styles.channelBody },
+            React.createElement('div', { style: styles.row }, `${c.quietShort} · ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => { next.minimumTurnDurationMs = value }), 60_000, 500, c.quietShort)),
+            React.createElement('div', { style: styles.row }, c.frequency, React.createElement('div', { style: styles.controls }, ...(['quiet', 'normal', 'every'] as const).map((value) => React.createElement('button', { key: value, type: 'button', style: { ...styles.button, ...(frequency === value ? styles.active : {}) }, onClick: () => setFrequency(value) }, c[value])))),
+            React.createElement('button', { type: 'button', style: styles.button, onClick: async () => { try { const value = remoteValue(await remote.restoreBuiltIns()); setSnapshot(value); setDraft(value.config); setStatus(c.saved) } catch (reason) { setError(String(reason)) } } }, c.restore),
+          )),
+        )),
       React.createElement('div', { style: error ? styles.error : styles.status, role: 'status' }, error || status),
     ),
   )

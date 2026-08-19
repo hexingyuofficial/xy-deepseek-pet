@@ -14679,14 +14679,17 @@ window.__ModuleLoader__.load({
       return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh");
     }
     var copy = {
-      en: { title: "Sound notifications", description: "Task and tool result sounds", mute: "Mute all", volume: "Volume", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", drop: "Drop your sound here", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", custom: "Custom", behavior: "Behavior", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
-      zh: { title: "\u63D0\u793A\u97F3", description: "\u4EFB\u52A1\u4E0E\u5DE5\u5177\u7ED3\u679C\u7684\u58F0\u97F3\u63D0\u9192", mute: "\u5168\u90E8\u9759\u97F3", volume: "\u97F3\u91CF", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", drop: "\u62D6\u5165\u4F60\u559C\u6B22\u7684\u58F0\u97F3", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", custom: "\u81EA\u5B9A\u4E49", behavior: "\u63D0\u9192\u884C\u4E3A", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
+      en: { title: "Sound notifications", mute: "Mute all", masterVolume: "Master volume", volume: "Volume", more: "More settings", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", drop: "Drop your sound here", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", custom: "Custom", behavior: "Behavior", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
+      zh: { title: "\u63D0\u793A\u97F3", mute: "\u5168\u90E8\u9759\u97F3", masterVolume: "\u603B\u4F53\u97F3\u91CF", volume: "\u97F3\u91CF", more: "\u66F4\u591A\u8BBE\u7F6E", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", drop: "\u62D6\u5165\u4F60\u559C\u6B22\u7684\u58F0\u97F3", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", custom: "\u81EA\u5B9A\u4E49", behavior: "\u63D0\u9192\u884C\u4E3A", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
     };
     var styles = {
       root: { alignSelf: "start", width: "100%", minHeight: 0, color: "var(--dsw-alias-label-primary, #f4f5f6)", marginTop: 8, borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.1))" },
-      summary: { minHeight: 42, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", listStyle: "none", fontSize: 13, fontWeight: 600 },
+      header: { minHeight: 42, display: "flex", alignItems: "center" },
+      title: { margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, letterSpacing: 0 },
+      moreSummary: { minHeight: 38, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", fontSize: 13 },
       disclosure: { display: "inline-block", width: 12, flex: "0 0 12px", fontSize: 10, lineHeight: 1, textAlign: "center" },
-      content: { padding: "0 0 8px 14px" },
+      content: { padding: "0 0 8px" },
+      moreBody: { padding: "0 0 4px 18px" },
       row: { display: "grid", gridTemplateColumns: "minmax(110px, 1fr) minmax(170px, 1.4fr)", gap: 12, alignItems: "center", minHeight: 42 },
       channel: { padding: "2px 0", borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.07))" },
       channelSummary: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40, cursor: "pointer", fontSize: 13 },
@@ -14709,7 +14712,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = (0, import_react.useState)(c.loading);
       const [error51, setError] = (0, import_react.useState)("");
       const [dragging, setDragging] = (0, import_react.useState)();
-      const [open, setOpen] = (0, import_react.useState)(false);
+      const [moreOpen, setMoreOpen] = (0, import_react.useState)(false);
       const fileInputs = (0, import_react.useRef)({});
       const saveTimer = (0, import_react.useRef)();
       const saveRevision = (0, import_react.useRef)(0);
@@ -14777,8 +14780,13 @@ window.__ModuleLoader__.load({
           setStatus("");
         }
       }, [c.saved, draft, locale, remote, snapshot2]);
-      if (!snapshot2 || !draft) return import_react.default.createElement("div", { style: { ...styles.root, display: "flex", alignItems: "center", minHeight: 42, maxHeight: 42, overflow: "hidden", fontSize: 13 } }, error51 || status);
-      const range = (value, onChange, max = 1, step = 0.05) => import_react.default.createElement("input", { type: "range", min: 0, max, step, value, style: styles.range, onChange: (event) => onChange(Number(event.currentTarget.value)) });
+      if (!snapshot2 || !draft) return import_react.default.createElement(
+        "div",
+        { style: { ...styles.root, ...embedded ? {} : { borderTop: 0 } } },
+        import_react.default.createElement("div", { style: styles.header }, import_react.default.createElement("h3", { style: styles.title }, c.title)),
+        import_react.default.createElement("div", { style: error51 ? styles.error : styles.status, role: "status" }, error51 || status)
+      );
+      const range = (value, onChange, max = 1, step = 0.05, label = c.volume) => import_react.default.createElement("input", { type: "range", min: 0, max, step, value, style: styles.range, "aria-label": label, onChange: (event) => onChange(Number(event.currentTarget.value)) });
       const frequency = draft.toolCooldownMs >= 4e3 ? "quiet" : draft.toolCooldownMs === 0 && draft.toolCoalesceMs === 0 ? "every" : "normal";
       const setFrequency = (value) => mutate((next) => {
         if (value === "quiet") {
@@ -14843,40 +14851,49 @@ window.__ModuleLoader__.load({
         );
       });
       return import_react.default.createElement(
-        "details",
-        { open, onToggle: (event) => setOpen(event.currentTarget.open), style: { ...styles.root, ...embedded ? {} : { borderTop: 0 }, ...!open ? { maxHeight: 42, overflow: "hidden" } : {} } },
-        import_react.default.createElement("summary", { style: styles.summary }, import_react.default.createElement("span", { style: styles.disclosure, "aria-hidden": true }, open ? "\u25BC" : "\u25B6"), import_react.default.createElement("span", null, `${c.title} \xB7 ${c.description}`)),
+        "div",
+        { style: { ...styles.root, ...embedded ? {} : { borderTop: 0 } } },
+        import_react.default.createElement("div", { style: styles.header }, import_react.default.createElement("h3", { style: styles.title }, c.title)),
         import_react.default.createElement(
           "div",
           { style: styles.content },
+          import_react.default.createElement("div", { style: styles.row }, `${c.masterVolume} \xB7 ${Math.round(draft.masterVolume * 100)}%`, range(draft.masterVolume, (value) => mutate((next) => {
+            next.masterVolume = value;
+          }), 1, 0.05, c.masterVolume)),
           import_react.default.createElement("div", { style: styles.row }, c.mute, import_react.default.createElement("input", { type: "checkbox", style: styles.check, checked: draft.masterMute, onChange: (event) => {
             const checked = event.currentTarget.checked;
             mutate((next) => {
               next.masterMute = checked;
             });
           } })),
-          import_react.default.createElement("div", { style: styles.row }, `${c.volume} \xB7 ${Math.round(draft.masterVolume * 100)}%`, range(draft.masterVolume, (value) => mutate((next) => {
-            next.masterVolume = value;
-          }))),
-          ...channels,
-          import_react.default.createElement("details", { style: styles.channel }, import_react.default.createElement("summary", { style: styles.channelSummary }, c.behavior), import_react.default.createElement(
-            "div",
-            { style: styles.channelBody },
-            import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
-              next.minimumTurnDurationMs = value;
-            }), 6e4, 500)),
-            import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
-            import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
-              try {
-                const value = remoteValue(await remote.restoreBuiltIns());
-                setSnapshot(value);
-                setDraft(value.config);
-                setStatus(c.saved);
-              } catch (reason) {
-                setError(String(reason));
-              }
-            } }, c.restore)
-          )),
+          import_react.default.createElement(
+            "details",
+            { open: moreOpen, onToggle: (event) => setMoreOpen(event.currentTarget.open) },
+            import_react.default.createElement("summary", { style: styles.moreSummary }, import_react.default.createElement("span", { style: styles.disclosure, "aria-hidden": true }, moreOpen ? "\u25BC" : "\u25B6"), import_react.default.createElement("span", null, c.more)),
+            import_react.default.createElement(
+              "div",
+              { style: styles.moreBody },
+              ...channels,
+              import_react.default.createElement("details", { style: styles.channel }, import_react.default.createElement("summary", { style: styles.channelSummary }, c.behavior), import_react.default.createElement(
+                "div",
+                { style: styles.channelBody },
+                import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
+                  next.minimumTurnDurationMs = value;
+                }), 6e4, 500, c.quietShort)),
+                import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
+                import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
+                  try {
+                    const value = remoteValue(await remote.restoreBuiltIns());
+                    setSnapshot(value);
+                    setDraft(value.config);
+                    setStatus(c.saved);
+                  } catch (reason) {
+                    setError(String(reason));
+                  }
+                } }, c.restore)
+              ))
+            )
+          ),
           import_react.default.createElement("div", { style: error51 ? styles.error : styles.status, role: "status" }, error51 || status)
         )
       );

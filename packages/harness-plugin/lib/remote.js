@@ -14519,13 +14519,24 @@ function date4(params) {
 config(en_default());
 
 // src/remote-schema.ts
-var scale = external_exports.number().min(0.4).max(2);
+var scale = external_exports.number().min(0.2).max(2);
 var action = external_exports.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/).max(96);
+var movementLevel = external_exports.number().int().min(0).max(100);
 var settings = external_exports.object({
   themeId: external_exports.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(64),
   reducedMotion: external_exports.boolean(),
   bubbleVisible: external_exports.boolean(),
   walkingEnabled: external_exports.boolean(),
+  wanderFrequency: movementLevel,
+  wanderDistance: movementLevel,
+  mouseChaseEnabled: external_exports.boolean(),
+  mouseChaseSpeed: movementLevel,
+  flingEnabled: external_exports.boolean(),
+  flingResistance: movementLevel,
+  showOnFullScreen: external_exports.boolean(),
+  teleportShortcutEnabled: external_exports.boolean(),
+  teleportShortcut: external_exports.string().regex(/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/),
+  teleportOpensRecentChat: external_exports.boolean(),
   scale,
   activationGesture: external_exports.enum(["doubleClick", "longPress"]),
   locale: external_exports.enum(["system", "zh-CN", "en"]),
@@ -14534,9 +14545,10 @@ var settings = external_exports.object({
   position: external_exports.object({ x: external_exports.number(), y: external_exports.number() }).optional()
 });
 var theme = external_exports.object({ id: external_exports.string(), name: external_exports.string(), license: external_exports.string(), author: external_exports.string().optional() });
+var stats = external_exports.object({ treasuresFound: external_exports.number().int().min(0) });
 var menuExtension = external_exports.object({ id: action, label: external_exports.object({ "zh-CN": external_exports.string(), en: external_exports.string() }), invoke: external_exports.enum(["open-client", "chat", "tap", "settings"]), order: external_exports.number().optional() });
 var launcherResult = external_exports.object({ displayName: external_exports.string().min(1).max(48), platform: external_exports.enum(["macOS", "Windows"]) });
-var snapshot = external_exports.object({ config: settings, themes: external_exports.array(theme), menuExtensions: external_exports.array(menuExtension) });
+var snapshot = external_exports.object({ config: settings, stats, themes: external_exports.array(theme), menuExtensions: external_exports.array(menuExtension) });
 var strict = (typeSymbol, schema) => ({ mode: "strict", typeSymbol, schema });
 var PET_REMOTE_DESCRIPTORS = [
   { id: "xy-deepseek-pet#xyPet/snapshot", service: "xyPet", namespace: "xyPet", method: "snapshot", invocation: { kind: "direct" }, parameters: [], result: strict("xy-deepseek-pet#PetSettingsSnapshot", snapshot) },

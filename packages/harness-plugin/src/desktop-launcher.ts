@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -78,8 +78,9 @@ function createMacLauncher(packageRoot: string, name: string, icon: string): voi
   const launchScript = join(packageRoot, 'runtime', 'launch.mjs')
   if (!existsSync(launchScript)) throw new Error('The development launcher runtime is unavailable.')
   const target = join(homedir(), 'Desktop', `${name}.app`)
-  if (existsSync(target)) throw new Error(`“${name}” already exists on the desktop.`)
-  const contents = join(target, 'Contents')
+  const replacementId = `${process.pid}-${Date.now()}`
+  const staging = join(homedir(), 'Desktop', `.${name}.${replacementId}.app`)
+  const contents = join(staging, 'Contents')
   const macos = join(contents, 'MacOS')
   const resources = join(contents, 'Resources')
   const iconset = join(resources, 'Pet.iconset')
@@ -96,8 +97,22 @@ function createMacLauncher(packageRoot: string, name: string, icon: string): voi
     writeFileSync(executable, macLauncherScript(launcherNodeExecutable(), launchScript))
     chmodSync(executable, 0o755)
     writeFileSync(join(contents, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleName</key><string>${xml(name)}</string><key>CFBundleDisplayName</key><string>${xml(name)}</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIconFile</key><string>Pet</string><key>CFBundleIdentifier</key><string>dev.xy-deepseek-pet.launcher</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>\n`)
+    if (existsSync(target)) {
+      // A launcher-started Harness may write inside an existing Desktop app
+      // while macOS still denies renaming the top-level bundle. The caller has
+      // already closed the pet, so replace only this launcher's controlled files.
+      const targetContents = join(target, 'Contents')
+      mkdirSync(join(targetContents, 'MacOS'), { recursive: true })
+      mkdirSync(join(targetContents, 'Resources'), { recursive: true })
+      writeFileSync(join(targetContents, 'MacOS', 'launch'), readFileSync(join(contents, 'MacOS', 'launch')), { mode: 0o755 })
+      writeFileSync(join(targetContents, 'Resources', 'Pet.icns'), readFileSync(join(contents, 'Resources', 'Pet.icns')))
+      writeFileSync(join(targetContents, 'Info.plist'), readFileSync(join(contents, 'Info.plist')))
+      rmSync(staging, { recursive: true, force: true })
+    } else {
+      renameSync(staging, target)
+    }
   } catch (error) {
-    rmSync(target, { recursive: true, force: true })
+    rmSync(staging, { recursive: true, force: true })
     throw error
   }
 }
@@ -114,7 +129,7 @@ function createWindowsLauncher(packageRoot: string, name: string, icon: string):
   const launchScript = join(packageRoot, 'runtime', 'launch.mjs')
   if (!existsSync(launchScript)) throw new Error('The development launcher runtime is unavailable.')
   const shortcut = join(homedir(), 'Desktop', `${name}.lnk`)
-  if (existsSync(shortcut)) throw new Error(`“${name}” already exists on the desktop.`)
+  rmSync(shortcut, { force: true })
   const iconRoot = join(homedir(), '.xy-deepseek-pet', 'launcher-icons')
   mkdirSync(iconRoot, { recursive: true, mode: 0o700 })
   const ico = join(iconRoot, `${name}.ico`)

@@ -22,7 +22,7 @@ The Host registers an ordered system-prompt section and a bounded `xy_pet` tool 
 - `open_settings`
 - `set_theme` with an exact installed theme ID
 - `import_theme` with an explicitly selected local ZIP path, including a licensed ZIP the agent downloaded after the user explicitly requested a skin
-- `set_scale` from `0.4` through `2.0`
+- `set_scale` from `0.2` through `2.0`
 - `create_launcher` with a sanitized display name and either the bundled whale icon or a user-selected local PNG
 
 Theme import still passes through the desktop ZIP importer and schema validator. The tool does not expose the rendezvous path, bridge port, token, session text, or arbitrary file contents. Pet appearance belongs to the selected theme. Desktop-shortcut artwork is separate: `create_launcher` accepts the bundled icon or a local PNG no larger than 5 MiB and uses the same validator as the settings UI.

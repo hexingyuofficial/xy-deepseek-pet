@@ -202,7 +202,7 @@
         "file": "sprites/complete/jackpot/treasure/sheet.webp",
         "frameWidth": 192,
         "frameHeight": 192,
-        "frameCount": 61,
+        "frameCount": 91,
         "columns": 60,
         "fps": 30,
         "loop": false

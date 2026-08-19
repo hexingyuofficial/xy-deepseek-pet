@@ -16,11 +16,16 @@ import { WebSocket, WebSocketServer } from 'ws'
 import {
   initialSnapshot,
   isBridgeClientMessage,
+  petSettingsUrl,
   boundedStatusText,
   reducePetEvent,
   type BridgeClientMessage,
   type BridgeServerMessage,
   type HarnessPetEvent,
+  type PetActivityKind,
+  type PetQuestionAnswer,
+  type PetQuestionItem,
+  type PetSessionActivity,
   type PetSessionSummary,
   type PetSnapshot,
 } from '@xy-deepseek-pet/protocol'
@@ -31,10 +36,19 @@ import { registerPetAgentCapabilities } from './agent-capabilities.js'
 import { createDesktopLauncher, type LauncherIconId } from './desktop-launcher.js'
 
 export const name = 'xy-deepseek-pet'
-export const inject = ['agents', 'commands', 'systemPrompt', 'tools']
+export const inject = ['agents', 'apiProxy', 'approval', 'commands', 'systemPrompt', 'tools']
 
 const MAX_WIRE_BYTES = 64 * 1024
 const REACTION_MS = 2_800
+const COMPLETION_SETTLE_MS = 500
+const MAX_SESSION_ACTIVITIES = 16
+const MAX_ACTIVITY_TEXT = 8_000
+
+function boundedActivityText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized ? normalized.slice(0, MAX_ACTIVITY_TEXT) : undefined
+}
 
 export interface Config {
   autoLaunch?: boolean
@@ -48,6 +62,103 @@ interface DesktopLaunch {
   command: string
   args: string[]
   resourceRoot?: string
+}
+
+interface PendingApprovalAnswer {
+  requestId: string
+  sessionId: string
+  approvalId: string
+  rpcId: string
+  toolName: string
+}
+
+interface PendingQuestionAnswer {
+  requestId: string
+  sessionId: string
+  rpcId: string
+  questions: PetQuestionItem[]
+}
+
+interface PendingCompletion {
+  agent: Agent
+  text: string
+  time: number
+  idleObserved: boolean
+  timer: NodeJS.Timeout | undefined
+}
+
+interface HarnessApiFrame {
+  rpcId: string
+  payload: {
+    type: string
+    sessionId?: unknown
+    approvalId?: unknown
+    toolName?: unknown
+    questions?: unknown
+    questionRpcId?: unknown
+    outcome?: unknown
+  }
+}
+
+interface HarnessApiProxy {
+  events: {
+    mux(request: { rpcId: string; payload: Record<string, never> }, signal: AbortSignal): AsyncIterable<HarnessApiFrame>
+  }
+  respond(message: {
+    type: 'client-response'
+    rpcId: string
+    result: { ok: true; value:
+      | { sessionId: string; approvalId: string; outcome: 'allowed-once' | 'rejected' }
+      | { sessionId: string; answer: { answers: PetQuestionAnswer[] } }
+    }
+  }): Promise<{ accepted: true } | { accepted: false; reason: string }>
+}
+
+function boundedVisibleString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return undefined
+  return normalized.slice(0, maxLength)
+}
+
+function sanitizeQuestions(value: unknown): PetQuestionItem[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return undefined
+  const ids = new Set<string>()
+  const questions: PetQuestionItem[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') return undefined
+    const input = entry as Record<string, unknown>
+    const id = boundedVisibleString(input.id, 128)
+    const question = boundedVisibleString(input.question, 600)
+    if (!id || !question || ids.has(id)) return undefined
+    ids.add(id)
+    let options: PetQuestionItem['options']
+    if (input.options !== undefined) {
+      if (!Array.isArray(input.options) || input.options.length > 12) return undefined
+      const labels = new Set<string>()
+      options = []
+      for (const entry of input.options) {
+        if (!entry || typeof entry !== 'object') return undefined
+        const option = entry as Record<string, unknown>
+        const label = boundedVisibleString(option.label, 120)
+        if (!label || labels.has(label)) return undefined
+        labels.add(label)
+        const description = boundedVisibleString(option.description, 500)
+        options.push({ label, ...(description ? { description } : {}) })
+      }
+    }
+    const header = boundedVisibleString(input.header, 80)
+    const detail = boundedVisibleString(input.detail, 4_000)
+    questions.push({
+      id,
+      question,
+      ...(header ? { header } : {}),
+      ...(detail ? { detail } : {}),
+      ...(options !== undefined ? { options } : {}),
+      ...(typeof input.multiSelect === 'boolean' ? { multiSelect: input.multiSelect } : {}),
+    })
+  }
+  return questions
 }
 
 const require = createRequire(import.meta.url)
@@ -87,7 +198,7 @@ function visibleAssistantText(event: SessionEvent): string | undefined {
     .map((block) => block.text)
     .join(' ')
     .trim()
-  return boundedStatusText(text)
+  return boundedActivityText(text)
 }
 
 function visibleAssistantChunk(event: SessionEvent): string | undefined {
@@ -132,6 +243,15 @@ function visibleSessionTitle(event: SessionEvent): string | undefined {
   return title ? title.slice(0, 120) : undefined
 }
 
+function latestVisibleSessionTitle(session: Session): { title: string; updatedAt: number } | undefined {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index]!
+    const title = visibleSessionTitle(event)
+    if (title) return { title, updatedAt: event.time }
+  }
+  return undefined
+}
+
 function desktopLaunch(config: Config): DesktopLaunch | undefined {
   const configuredCommand = config.desktopCommand ?? process.env.XY_DEEPSEEK_PET_DESKTOP_COMMAND
   const configuredEntry = config.desktopEntry ?? process.env.XY_DEEPSEEK_PET_DESKTOP_ENTRY
@@ -163,9 +283,17 @@ export class HarnessPetRuntime {
   private snapshot: PetSnapshot = initialSnapshot()
   private readonly sessions = new Map<string, PetSessionSummary>()
   private readonly lastAssistantText = new Map<string, string>()
+  private readonly assistantStreams = new Map<string, string>()
   private readonly activeToolCalls = new Map<string, Map<string, string>>()
   private readonly pendingQuestionCalls = new Map<string, Set<string>>()
   private readonly pendingApprovals = new Map<string, Map<string, string>>()
+  private readonly pendingApprovalAnswers = new Map<string, PendingApprovalAnswer>()
+  private readonly pendingQuestionAnswers = new Map<string, PendingQuestionAnswer>()
+  private readonly sessionActivities = new Map<string, PetSessionActivity[]>()
+  private readonly pendingCompletions = new Map<string, PendingCompletion>()
+  private activitySequence = 0
+  private apiEventsAbort: AbortController | undefined
+  private apiEventsTask: Promise<void> | undefined
   private sequence = 0
   private reactionTimer: NodeJS.Timeout | undefined
   private stopped = false
@@ -187,6 +315,7 @@ export class HarnessPetRuntime {
   async start(): Promise<void> {
     if (this.server || this.stopped) return
     this.selectLatest()
+    for (const agent of this.ctx.agents.roots()) this.restoreSessionTitle(agent)
     this.server = new WebSocketServer({ host: '127.0.0.1', port: 0, maxPayload: MAX_WIRE_BYTES })
     this.server.on('connection', (socket) => this.accept(socket))
     await new Promise<void>((resolveReady, reject) => {
@@ -194,6 +323,7 @@ export class HarnessPetRuntime {
       this.server?.once('error', reject)
     })
     this.snapshot = reducePetEvent(this.snapshot, { type: 'bridge/connected' })
+    this.startApiEventMirror()
     await this.writeRendezvous()
     if (this.config.autoLaunch === true || this.settings?.config.autoLaunch === true) this.openDesktop()
     this.logger.info('local desktop bridge ready')
@@ -202,11 +332,21 @@ export class HarnessPetRuntime {
   async stop(): Promise<void> {
     this.stopped = true
     if (this.reactionTimer) clearTimeout(this.reactionTimer)
+    for (const pending of this.pendingCompletions.values()) {
+      if (pending.timer) clearTimeout(pending.timer)
+    }
+    this.pendingCompletions.clear()
     for (const pending of this.pendingThemeImports.values()) {
       clearTimeout(pending.timeout)
       pending.reject(new Error('Pet runtime stopped'))
     }
     this.pendingThemeImports.clear()
+    this.apiEventsAbort?.abort()
+    this.apiEventsAbort = undefined
+    await this.apiEventsTask
+    this.apiEventsTask = undefined
+    this.pendingApprovalAnswers.clear()
+    this.pendingQuestionAnswers.clear()
     this.desktop?.kill()
     this.desktop = undefined
     const server = this.server
@@ -232,12 +372,23 @@ export class HarnessPetRuntime {
     const address = this.server.address()
     if (!address || typeof address === 'string') return false
     const child = spawn(launch.command, launch.args, {
-      stdio: ['pipe', 'ignore', 'ignore'],
+      stdio: ['pipe', 'ignore', 'pipe'],
       env: { ...process.env, XY_DEEPSEEK_PET_CHILD: '1' },
     })
+    let stderr = ''
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', (chunk: string) => {
+      stderr = `${stderr}${chunk}`.slice(-4_096)
+    })
     child.stdin?.end(`${JSON.stringify({ port: address.port, token: this.token })}\n`)
-    child.once('exit', () => {
+    child.once('exit', (code, signal) => {
       if (this.desktop === child) this.desktop = undefined
+      if (code && code !== 0) {
+        const detail = stderr.replace(/\s+/g, ' ').trim().slice(-1_000)
+        this.logger.warn(`desktop exited with code ${code}${detail ? `: ${detail}` : ''}`)
+      } else if (signal && !child.killed) {
+        this.logger.warn(`desktop exited after signal ${signal}`)
+      }
     })
     child.once('error', (error) => this.logger.warn(`desktop launch failed: ${String(error)}`))
     this.desktop = child
@@ -294,9 +445,18 @@ export class HarnessPetRuntime {
     })
   }
 
-  createLauncher(name: string, iconId: LauncherIconId, fileName: string, dataBase64: string): { displayName: string; platform: 'macOS' | 'Windows' } {
+  async createLauncher(name: string, iconId: LauncherIconId, fileName: string, dataBase64: string): Promise<{ displayName: string; platform: 'macOS' | 'Windows' }> {
     const packageRoot = resolve(import.meta.dirname, '..')
-    return createDesktopLauncher({ packageRoot, name, iconId, fileName, dataBase64 })
+    const reopenDesktop = process.platform === 'darwin' && this.desktopStatus()
+    try {
+      if (reopenDesktop) {
+        this.closeDesktop()
+        await this.waitForDesktopClosed(5_000)
+      }
+      return createDesktopLauncher({ packageRoot, name, iconId, fileName, dataBase64 })
+    } finally {
+      if (reopenDesktop) this.openDesktop()
+    }
   }
 
   async importThemeArchive(path: string, signal?: AbortSignal): Promise<string> {
@@ -313,15 +473,22 @@ export class HarnessPetRuntime {
   onAgentCreated(agent: Agent): void {
     this.touch(agent)
     this.selectLatest()
+    this.restoreSessionTitle(agent)
   }
 
   onAgentDisposed(agent: Agent): void {
+    const sessionId = String(agent.id)
+    this.cancelPendingCompletion(sessionId)
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId)
+    this.clearQuestionAnswers((pending) => pending.sessionId === sessionId)
     this.touched.delete(String(agent.id))
     this.sessions.delete(String(agent.id))
     this.lastAssistantText.delete(String(agent.id))
+    this.assistantStreams.delete(String(agent.id))
     this.activeToolCalls.delete(String(agent.id))
     this.pendingQuestionCalls.delete(String(agent.id))
     this.pendingApprovals.delete(String(agent.id))
+    this.sessionActivities.delete(String(agent.id))
     if (this.selected === agent) this.selectLatest()
     this.publishAggregate()
   }
@@ -331,10 +498,14 @@ export class HarnessPetRuntime {
     this.touch(agent)
     this.selected = agent
     if (status === 'running') {
+      this.cancelPendingCompletion(String(agent.id))
       this.cancelReaction()
-      this.lastAssistantText.delete(String(agent.id))
-      this.updateSession(String(agent.id), { state: 'thinking', unread: false, text: 'Thinking' })
-      this.publish({ type: 'agent/running', sessionId: String(agent.id) })
+      return
+    }
+    const pendingCompletion = this.pendingCompletions.get(String(agent.id))
+    if (pendingCompletion) {
+      pendingCompletion.idleObserved = true
+      if (!pendingCompletion.timer) this.confirmCompletion(String(agent.id))
       return
     }
     const summary = this.sessions.get(String(agent.id))
@@ -355,6 +526,10 @@ export class HarnessPetRuntime {
       this.publishAggregate()
       return
     }
+    if (!this.sessions.get(sessionId)?.title) {
+      const historicalTitle = latestVisibleSessionTitle(session)
+      if (historicalTitle) this.updateSession(sessionId, historicalTitle)
+    }
     const approval = approvalAuditEvent(event)
     if (approval?.type === 'approval/asked') {
       const approvals = this.pendingApprovals.get(sessionId) ?? new Map<string, string>()
@@ -365,21 +540,32 @@ export class HarnessPetRuntime {
     }
     if (approval?.type === 'approval/decided') {
       this.pendingApprovals.get(sessionId)?.delete(approval.data.id)
+      this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === approval.data.id)
       this.publishCurrentActivity(sessionId, approval.time)
       return
     }
     switch (event.type) {
       case 'turn/start':
+        this.cancelPendingCompletion(sessionId)
         this.cancelReaction()
         this.lastAssistantText.delete(sessionId)
+        this.assistantStreams.delete(sessionId)
         this.activeToolCalls.delete(sessionId)
         this.pendingQuestionCalls.delete(sessionId)
         this.pendingApprovals.delete(sessionId)
-        this.updateSession(sessionId, { state: 'thinking', unread: false, text: 'Thinking' })
-        this.publish({ type: 'agent/running', sessionId, time: event.time })
+        this.clearQuestionAnswers((pending) => pending.sessionId === sessionId)
+        if (!this.isContinuingRound(sessionId)) this.sessionActivities.set(sessionId, [])
+        this.appendActivity(sessionId, 'thinking', 'Thinking', event.time)
+        this.updateSession(sessionId, { state: 'thinking', unread: false, text: 'Thinking', turn: event.data.turn, approval: undefined, question: undefined })
+        this.publish({ type: 'agent/running', sessionId, turn: event.data.turn, time: event.time })
         break
       case 'tool/call':
         {
+          this.cancelPendingCompletion(sessionId)
+          // A tool call ends the current public assistant segment. Text emitted
+          // after the tool must become the new compact status, not be appended
+          // behind an earlier progress update that may already be truncated.
+          this.assistantStreams.delete(sessionId)
           const callId = String(event.data.callId)
           const toolName = safeToolName(event.data.name)
           if (toolName === 'ask_user_question' || toolName === 'request_user_input') {
@@ -393,11 +579,13 @@ export class HarnessPetRuntime {
           tools.set(callId, toolName)
           this.activeToolCalls.set(sessionId, tools)
           const text = boundedStatusText(`Using ${toolName}`) ?? 'Working'
-          this.updateSession(sessionId, { state: 'working', text })
+          this.appendActivity(sessionId, 'tool', text, event.time, `tool:${callId}`)
+          this.updateSession(sessionId, { state: 'working', text, turn: event.data.turn })
           this.publish({ type: 'step/working', sessionId, text, time: event.time })
         }
         break
       case 'tool/result': {
+        this.cancelPendingCompletion(sessionId)
         const callId = toolResultCallId(event)
         if (callId) {
           this.activeToolCalls.get(sessionId)?.delete(callId)
@@ -407,40 +595,51 @@ export class HarnessPetRuntime {
         break
       }
       case 'assistant/chunk': {
+        this.cancelPendingCompletion(sessionId)
         const delta = visibleAssistantChunk(event)
         if (!delta) break
-        const text = boundedStatusText(`${this.lastAssistantText.get(sessionId) ?? ''}${delta}`)
-        if (!text) break
+        const stream = `${this.assistantStreams.get(sessionId) ?? ''}${delta}`.slice(0, MAX_ACTIVITY_TEXT)
+        this.assistantStreams.set(sessionId, stream)
+        const activityText = boundedActivityText(stream)
+        const text = boundedStatusText(stream)
+        if (!text || !activityText) break
         this.lastAssistantText.set(sessionId, text)
+        this.upsertAssistantActivity(sessionId, activityText, event.time)
         this.updateSession(sessionId, { text })
         this.publish({ type: 'assistant/text', sessionId, text, time: event.time })
         break
       }
       case 'assistant/message': {
-        const text = visibleAssistantText(event)
-        if (text) {
+        this.cancelPendingCompletion(sessionId)
+        const activityText = visibleAssistantText(event)
+        const text = boundedStatusText(activityText)
+        if (text && activityText) {
           this.lastAssistantText.set(sessionId, text)
+          this.upsertAssistantActivity(sessionId, activityText, event.time)
           this.updateSession(sessionId, { text })
           this.publish({ type: 'assistant/text', sessionId, text, time: event.time })
         }
         break
       }
       case 'turn/end':
-        this.activeToolCalls.delete(sessionId)
-        this.pendingQuestionCalls.delete(sessionId)
-        this.pendingApprovals.delete(sessionId)
         if (event.data.reason.kind === 'completed') {
+          if (this.hasPendingContinuation(sessionId)) {
+            this.publishCurrentActivity(sessionId, event.time)
+            break
+          }
           const text = this.lastAssistantText.get(sessionId) ?? 'Done'
-          this.updateSession(sessionId, { state: 'complete', unread: true, text })
-          this.publish({ type: 'turn/complete', sessionId, text, time: event.time })
-          this.scheduleIdle(agent)
+          this.queueCompletion(agent, text, event.time)
         } else if (event.data.reason.kind === 'blocked') {
+          this.appendActivity(sessionId, 'needsInput', 'Needs your input', event.time)
           this.updateSession(sessionId, { state: 'needsInput', unread: true, text: 'Needs your input' })
           this.publish({ type: 'agent/needs-input', sessionId, text: 'Needs your input', time: event.time })
         } else if (event.data.reason.kind === 'error') {
+          this.clearSessionContinuation(sessionId)
+          this.appendActivity(sessionId, 'error', 'Something went wrong', event.time)
           this.updateSession(sessionId, { state: 'error', unread: true, text: 'Something went wrong' })
           this.publish({ type: 'agent/error', sessionId, text: 'Something went wrong', time: event.time })
         } else {
+          this.clearSessionContinuation(sessionId)
           this.updateSession(sessionId, { state: 'idle', unread: false, text: undefined })
           this.publishAggregate()
         }
@@ -449,16 +648,28 @@ export class HarnessPetRuntime {
   }
 
   private publishAttentionState(sessionId: string, time: number): void {
-    const approval = [...(this.pendingApprovals.get(sessionId)?.values() ?? [])].at(-1)
-    const text = approval ? `Approval required: ${approval}` : 'Waiting for your answer'
-    this.updateSession(sessionId, { state: 'needsInput', unread: true, text })
+    const answer = [...this.pendingApprovalAnswers.values()].reverse().find((pending) => pending.sessionId === sessionId)
+    const approval = answer?.toolName ?? [...(this.pendingApprovals.get(sessionId)?.values() ?? [])].at(-1)
+    const pendingQuestion = [...this.pendingQuestionAnswers.values()].reverse().find((pending) => pending.sessionId === sessionId)
+    const text = approval ? `Approval required: ${approval}` : pendingQuestion ? 'Choice required' : 'Waiting for your answer'
+    this.appendActivity(sessionId, 'needsInput', text, time)
+    this.updateSession(sessionId, {
+      state: 'needsInput',
+      unread: true,
+      text,
+      approval: answer ? { requestId: answer.requestId, toolName: answer.toolName } : undefined,
+      question: !approval && pendingQuestion
+        ? { requestId: pendingQuestion.requestId, questions: pendingQuestion.questions }
+        : undefined,
+    })
     this.publish({ type: 'agent/needs-input', sessionId, text, time })
   }
 
   private publishCurrentActivity(sessionId: string, time: number): void {
     const hasQuestions = Boolean(this.pendingQuestionCalls.get(sessionId)?.size)
     const hasApprovals = Boolean(this.pendingApprovals.get(sessionId)?.size)
-    if (hasQuestions || hasApprovals) return this.publishAttentionState(sessionId, time)
+    const hasQuestionAnswer = [...this.pendingQuestionAnswers.values()].some((pending) => pending.sessionId === sessionId)
+    if (hasQuestions || hasApprovals || hasQuestionAnswer) return this.publishAttentionState(sessionId, time)
     const activeTool = [...(this.activeToolCalls.get(sessionId)?.values() ?? [])].at(-1)
     if (activeTool) {
       const text = boundedStatusText(`Using ${activeTool}`) ?? 'Working'
@@ -466,8 +677,172 @@ export class HarnessPetRuntime {
       this.publish({ type: 'step/working', sessionId, text, time })
       return
     }
-    this.updateSession(sessionId, { state: 'thinking', unread: false, text: 'Thinking' })
-    this.publish({ type: 'agent/running', sessionId, time })
+    const turn = this.sessions.get(sessionId)?.turn
+    this.appendActivity(sessionId, 'thinking', 'Thinking', time)
+    this.updateSession(sessionId, { state: 'thinking', unread: false, text: 'Thinking', approval: undefined, question: undefined })
+    this.publish({ type: 'agent/running', sessionId, ...(turn !== undefined ? { turn } : {}), time })
+  }
+
+  private startApiEventMirror(): void {
+    const apiProxy = (this.ctx as unknown as { apiProxy?: HarnessApiProxy }).apiProxy
+    if (!apiProxy || this.apiEventsTask) return
+    const controller = new AbortController()
+    this.apiEventsAbort = controller
+    this.apiEventsTask = this.consumeApiEvents(apiProxy, controller.signal)
+  }
+
+  private async consumeApiEvents(apiProxy: HarnessApiProxy, signal: AbortSignal): Promise<void> {
+    try {
+      const request = { rpcId: randomUUID(), payload: {} as Record<string, never> }
+      for await (const frame of apiProxy.events.mux(request, signal)) this.onApiFrame(frame)
+    } catch {
+      if (!signal.aborted && !this.stopped) this.logger.warn('official Harness interaction mirror stopped')
+    }
+  }
+
+  private onApiFrame(frame: HarnessApiFrame): void {
+    const payload = frame.payload
+    if (payload.type === 'approval/requested') {
+      if (typeof payload.sessionId !== 'string' || typeof payload.approvalId !== 'string') return
+      const sessionId = payload.sessionId
+      const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId)
+      if (!agent || !this.isRoot(agent)) return
+      const requestId = String(frame.rpcId)
+      this.pendingApprovalAnswers.set(requestId, {
+        requestId,
+        sessionId,
+        approvalId: payload.approvalId,
+        rpcId: frame.rpcId,
+        toolName: safeToolName(payload.toolName),
+      })
+      const approvals = this.pendingApprovals.get(sessionId) ?? new Map<string, string>()
+      approvals.set(String(payload.approvalId), safeToolName(payload.toolName))
+      this.pendingApprovals.set(sessionId, approvals)
+      this.publishAttentionState(sessionId, Date.now())
+      return
+    }
+    if (payload.type === 'approval/resolved') {
+      if (typeof payload.sessionId !== 'string' || typeof payload.approvalId !== 'string') return
+      const sessionId = payload.sessionId
+      this.pendingApprovals.get(sessionId)?.delete(payload.approvalId)
+      this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === payload.approvalId)
+      this.publishCurrentActivity(sessionId, Date.now())
+      return
+    }
+    if (payload.type === 'question/requested') {
+      if (typeof payload.sessionId !== 'string') return
+      const questions = sanitizeQuestions(payload.questions)
+      if (!questions) return
+      const sessionId = payload.sessionId
+      const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId)
+      if (!agent || !this.isRoot(agent)) return
+      const requestId = String(frame.rpcId)
+      this.pendingQuestionAnswers.set(requestId, { requestId, sessionId, rpcId: frame.rpcId, questions })
+      this.publishAttentionState(sessionId, Date.now())
+      return
+    }
+    if (payload.type === 'question/resolved') {
+      if (typeof payload.sessionId !== 'string' || typeof payload.questionRpcId !== 'string') return
+      const sessionId = payload.sessionId
+      this.clearQuestionAnswers((pending) => pending.sessionId === sessionId && pending.rpcId === payload.questionRpcId)
+      this.pendingQuestionCalls.delete(sessionId)
+      this.publishCurrentActivity(sessionId, Date.now())
+    }
+  }
+
+  private async answerQuestion(
+    socket: WebSocket,
+    message: Extract<BridgeClientMessage, { type: 'question-answer' }>,
+  ): Promise<void> {
+    const pending = this.pendingQuestionAnswers.get(message.requestId)
+    if (!pending || this.authenticatedDesktop() !== socket || pending.sessionId !== message.sessionId ||
+      !this.validQuestionAnswers(pending.questions, message.answers)) {
+      this.send(socket, { type: 'question-result', requestId: message.requestId, ok: false, error: 'Question is no longer available or the answer is invalid.' })
+      return
+    }
+    try {
+      const apiProxy = (this.ctx as unknown as { apiProxy?: HarnessApiProxy }).apiProxy
+      if (!apiProxy) throw new Error('official API Proxy is unavailable')
+      const answers = message.answers.map((answer) => ({
+        id: answer.id,
+        selected: [...answer.selected],
+        ...(answer.custom ? { custom: answer.custom.trim() } : {}),
+      }))
+      const receipt = await apiProxy.respond({
+        type: 'client-response',
+        rpcId: pending.rpcId,
+        result: { ok: true, value: { sessionId: pending.sessionId, answer: { answers } } },
+      })
+      if (!receipt.accepted) throw new Error('not pending')
+      this.clearQuestionAnswers((entry) => entry.requestId === pending.requestId)
+      this.pendingQuestionCalls.delete(pending.sessionId)
+      this.publishCurrentActivity(pending.sessionId, Date.now())
+      this.send(socket, { type: 'question-result', requestId: message.requestId, ok: true })
+    } catch {
+      this.send(socket, { type: 'question-result', requestId: message.requestId, ok: false, error: 'Question is no longer available.' })
+    }
+  }
+
+  private validQuestionAnswers(questions: PetQuestionItem[], answers: PetQuestionAnswer[]): boolean {
+    if (answers.length !== questions.length) return false
+    return questions.every((question, index) => {
+      const answer = answers[index]
+      if (!answer || answer.id !== question.id || new Set(answer.selected).size !== answer.selected.length) return false
+      const labels = new Set((question.options ?? []).map((option) => option.label))
+      if (answer.selected.some((label) => !labels.has(label))) return false
+      const custom = answer.custom?.trim()
+      if (!question.multiSelect && answer.selected.length > 1) return false
+      if (!question.multiSelect && answer.selected.length > 0 && custom) return false
+      return answer.selected.length > 0 || Boolean(custom)
+    })
+  }
+
+  private async decideApproval(
+    socket: WebSocket,
+    message: Extract<BridgeClientMessage, { type: 'approval-decision' }>,
+  ): Promise<void> {
+    const pending = this.pendingApprovalAnswers.get(message.requestId)
+    if (!pending || this.authenticatedDesktop() !== socket || pending.sessionId !== message.sessionId) {
+      this.send(socket, { type: 'approval-result', requestId: message.requestId, ok: false, error: 'Approval request is no longer available.' })
+      return
+    }
+    try {
+      const apiProxy = (this.ctx as unknown as { apiProxy?: HarnessApiProxy }).apiProxy
+      if (!apiProxy) throw new Error('official API Proxy is unavailable')
+      const receipt = await apiProxy.respond({
+        type: 'client-response',
+        rpcId: pending.rpcId,
+        result: {
+          ok: true,
+          value: {
+            sessionId: pending.sessionId,
+            approvalId: pending.approvalId,
+            outcome: message.outcome,
+          },
+        },
+      })
+      if (!receipt.accepted) throw new Error('not pending')
+      this.clearApprovalAnswers((entry) => entry.requestId === pending.requestId)
+      this.pendingApprovals.get(pending.sessionId)?.delete(String(pending.approvalId))
+      this.publishCurrentActivity(pending.sessionId, Date.now())
+      this.send(socket, { type: 'approval-result', requestId: message.requestId, ok: true })
+    } catch {
+      this.send(socket, { type: 'approval-result', requestId: message.requestId, ok: false, error: 'Approval request is no longer available.' })
+    }
+  }
+
+  private clearApprovalAnswers(
+    predicate: (pending: PendingApprovalAnswer) => boolean,
+  ): void {
+    for (const pending of [...this.pendingApprovalAnswers.values()]) {
+      if (predicate(pending)) this.pendingApprovalAnswers.delete(pending.requestId)
+    }
+  }
+
+  private clearQuestionAnswers(predicate: (pending: PendingQuestionAnswer) => boolean): void {
+    for (const pending of [...this.pendingQuestionAnswers.values()]) {
+      if (predicate(pending)) this.pendingQuestionAnswers.delete(pending.requestId)
+    }
   }
 
   onAgentError(agent: Agent): void {
@@ -497,13 +872,20 @@ export class HarnessPetRuntime {
         return
       }
       if (value.type === 'chat') this.submitChat(socket, value.requestId, value.text, value.sessionId)
+      if (value.type === 'approval-decision') void this.decideApproval(socket, value)
+      if (value.type === 'question-answer') void this.answerQuestion(socket, value)
       if (value.type === 'focus') this.openDesktop()
       if (value.type === 'acknowledge') this.acknowledge(value.sessionId)
       if (value.type === 'open-client') this.openClient(value.sessionId)
+      if (value.type === 'treasure-found') {
+        void this.settings?.recordTreasureFound().catch(() => this.logger.warn('could not persist treasure count'))
+      }
       if (value.type === 'shutdown-service') this.shutdownOwnedService()
       if (value.type === 'theme-import-result') this.resolveThemeImport(value)
     })
-    socket.once('close', () => clearTimeout(authTimer))
+    socket.once('close', () => {
+      clearTimeout(authTimer)
+    })
   }
 
   private submitChat(socket: WebSocket, requestId: string, text: string, sessionId?: string): void {
@@ -528,7 +910,18 @@ export class HarnessPetRuntime {
   }
 
   private publish(event: HarnessPetEvent): void {
-    this.snapshot = { ...reducePetEvent(this.snapshot, event), sessions: this.sortedSessions() }
+    const reduced = reducePetEvent(this.snapshot, event)
+    if ('sessionId' in event) {
+      const { turn: _staleTurn, ...withoutTurn } = reduced
+      const turn = this.sessions.get(event.sessionId)?.turn
+      this.snapshot = {
+        ...withoutTurn,
+        ...(turn !== undefined ? { turn } : {}),
+        sessions: this.sortedSessions(),
+      }
+    } else {
+      this.snapshot = { ...reduced, sessions: this.sortedSessions() }
+    }
     this.broadcast()
   }
 
@@ -539,9 +932,13 @@ export class HarnessPetRuntime {
       summaries.find((entry) => entry.state === 'working') ??
       summaries.find((entry) => entry.state === 'thinking')
     const nextState = active?.state ?? 'idle'
-    const { sessionId: _sessionId, text: _text, ...snapshotBase } = this.snapshot
+    const { sessionId: _sessionId, text: _text, turn: _turn, ...snapshotBase } = this.snapshot
     const activeFields = active
-      ? { sessionId: active.id, ...(active.text ? { text: active.text } : {}) }
+      ? {
+          sessionId: active.id,
+          ...(active.text ? { text: active.text } : {}),
+          ...(active.turn !== undefined ? { turn: active.turn } : {}),
+        }
       : {}
     this.snapshot = {
       ...snapshotBase,
@@ -571,11 +968,106 @@ export class HarnessPetRuntime {
       unread: patch.unread ?? previous?.unread ?? false,
       updatedAt: patch.updatedAt ?? Date.now(),
       ...(patch.text !== undefined ? { text: patch.text } : previous?.text ? { text: previous.text } : {}),
+      ...(patch.turn !== undefined ? { turn: patch.turn } : previous?.turn !== undefined ? { turn: previous.turn } : {}),
+      ...(this.sessionActivities.get(id)?.length ? { activities: [...this.sessionActivities.get(id)!] } : {}),
+      ...(patch.approval !== undefined ? { approval: patch.approval } : previous?.approval ? { approval: previous.approval } : {}),
+      ...(patch.question !== undefined ? { question: patch.question } : previous?.question ? { question: previous.question } : {}),
     })
     if (patch.text === undefined && Object.prototype.hasOwnProperty.call(patch, 'text')) {
       const current = this.sessions.get(id)!
       delete current.text
     }
+    if (patch.approval === undefined && Object.prototype.hasOwnProperty.call(patch, 'approval')) {
+      const current = this.sessions.get(id)!
+      delete current.approval
+    }
+    if (patch.question === undefined && Object.prototype.hasOwnProperty.call(patch, 'question')) {
+      const current = this.sessions.get(id)!
+      delete current.question
+    }
+  }
+
+  private appendActivity(
+    sessionId: string,
+    kind: PetActivityKind,
+    text: string,
+    time: number,
+    id = `${kind}:${++this.activitySequence}`,
+  ): void {
+    const bounded = boundedActivityText(text)
+    if (!bounded) return
+    const activities = this.sessionActivities.get(sessionId) ?? []
+    const previous = activities.at(-1)
+    if (previous?.kind === kind && previous.text === bounded && kind !== 'tool') return
+    const next = [...activities.filter((activity) => activity.id !== id), { id, kind, text: bounded, time }]
+      .slice(-MAX_SESSION_ACTIVITIES)
+    this.sessionActivities.set(sessionId, next)
+  }
+
+  private isContinuingRound(sessionId: string): boolean {
+    const state = this.sessions.get(sessionId)?.state
+    return state === 'thinking' || state === 'working' || state === 'needsInput'
+  }
+
+  private hasPendingContinuation(sessionId: string): boolean {
+    return Boolean(this.activeToolCalls.get(sessionId)?.size) ||
+      Boolean(this.pendingQuestionCalls.get(sessionId)?.size) ||
+      Boolean(this.pendingApprovals.get(sessionId)?.size) ||
+      [...this.pendingApprovalAnswers.values()].some((entry) => entry.sessionId === sessionId) ||
+      [...this.pendingQuestionAnswers.values()].some((entry) => entry.sessionId === sessionId)
+  }
+
+  private clearSessionContinuation(sessionId: string): void {
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId)
+    this.clearQuestionAnswers((pending) => pending.sessionId === sessionId)
+    this.activeToolCalls.delete(sessionId)
+    this.pendingQuestionCalls.delete(sessionId)
+    this.pendingApprovals.delete(sessionId)
+    this.updateSession(sessionId, { approval: undefined, question: undefined })
+  }
+
+  private queueCompletion(agent: Agent, text: string, time: number): void {
+    const sessionId = String(agent.id)
+    this.cancelPendingCompletion(sessionId)
+    const pending: PendingCompletion = {
+      agent,
+      text,
+      time,
+      idleObserved: agent.status === 'idle',
+      timer: undefined,
+    }
+    pending.timer = setTimeout(() => this.confirmCompletion(sessionId), COMPLETION_SETTLE_MS)
+    this.pendingCompletions.set(sessionId, pending)
+  }
+
+  private confirmCompletion(sessionId: string): void {
+    const pending = this.pendingCompletions.get(sessionId)
+    if (!pending) return
+    pending.timer = undefined
+    if (this.stopped) {
+      this.pendingCompletions.delete(sessionId)
+      return
+    }
+    if (!pending.idleObserved && pending.agent.status !== 'idle') return
+    this.pendingCompletions.delete(sessionId)
+    if (this.hasPendingContinuation(sessionId)) return
+    this.appendActivity(sessionId, 'complete', 'Done', pending.time)
+    this.updateSession(sessionId, { state: 'complete', unread: true, text: pending.text })
+    this.publish({ type: 'turn/complete', sessionId, text: pending.text, time: pending.time })
+    this.scheduleIdle(pending.agent)
+  }
+
+  private cancelPendingCompletion(sessionId: string): void {
+    const pending = this.pendingCompletions.get(sessionId)
+    if (!pending) return
+    if (pending.timer) clearTimeout(pending.timer)
+    this.pendingCompletions.delete(sessionId)
+  }
+
+  private upsertAssistantActivity(sessionId: string, text: string, time: number): void {
+    const previous = this.sessionActivities.get(sessionId)?.at(-1)
+    const id = previous?.kind === 'assistant' ? previous.id : `assistant:${++this.activitySequence}`
+    this.appendActivity(sessionId, 'assistant', text, time, id)
   }
 
   private sortedSessions(): PetSessionSummary[] {
@@ -591,9 +1083,13 @@ export class HarnessPetRuntime {
       offline: 0,
     }
     return [...this.sessions.values()]
-      .filter((entry) => entry.state !== 'idle' || entry.unread)
       .sort((a, b) => priority[b.state] - priority[a.state] || b.updatedAt - a.updatedAt)
       .slice(0, 64)
+      .map((entry, index) => {
+        if (index < 3 || !entry.activities) return entry
+        const { activities: _activities, ...summary } = entry
+        return summary
+      })
   }
 
   private acknowledge(sessionId: string): void {
@@ -615,6 +1111,20 @@ export class HarnessPetRuntime {
     if (this.lastClientOpen?.target === target && now - this.lastClientOpen.at < 5_000) return
     this.lastClientOpen = { target, at: now }
     const url = this.config.clientUrl ?? process.env.XY_DEEPSEEK_PET_CLIENT_URL ?? 'http://127.0.0.1:3080'
+    const launch = process.platform === 'darwin'
+      ? { command: 'open', args: [url] }
+      : process.platform === 'win32'
+        ? { command: 'cmd.exe', args: ['/d', '/s', '/c', 'start', '', url] }
+        : { command: 'xdg-open', args: [url] }
+    const child = spawn(launch.command, launch.args, { stdio: 'ignore', windowsHide: true })
+    child.unref()
+  }
+
+  openSettings(): void {
+    const now = Date.now()
+    if (this.lastClientOpen?.target === 'settings' && now - this.lastClientOpen.at < 5_000) return
+    this.lastClientOpen = { target: 'settings', at: now }
+    const url = petSettingsUrl(this.config.clientUrl ?? process.env.XY_DEEPSEEK_PET_CLIENT_URL ?? 'http://127.0.0.1:3080')
     const launch = process.platform === 'darwin'
       ? { command: 'open', args: [url] }
       : process.platform === 'win32'
@@ -657,6 +1167,22 @@ export class HarnessPetRuntime {
     })
   }
 
+  private waitForDesktopClosed(timeoutMs: number): Promise<void> {
+    if (!this.desktopStatus()) return Promise.resolve()
+    return new Promise((resolveWait, reject) => {
+      const deadline = Date.now() + timeoutMs
+      const interval = setInterval(() => {
+        if (!this.desktopStatus()) {
+          clearInterval(interval)
+          resolveWait()
+        } else if (Date.now() >= deadline) {
+          clearInterval(interval)
+          reject(new Error('Close the desktop pet before replacing its macOS shortcut.'))
+        }
+      }, 50)
+    })
+  }
+
   private resolveThemeImport(message: Extract<BridgeClientMessage, { type: 'theme-import-result' }>): void {
     const pending = this.pendingThemeImports.get(message.requestId)
     if (!pending) return
@@ -682,6 +1208,11 @@ export class HarnessPetRuntime {
 
   private touch(agent: Agent): void {
     this.touched.set(String(agent.id), ++this.sequence)
+  }
+
+  private restoreSessionTitle(agent: Agent): void {
+    const title = latestVisibleSessionTitle(agent.session)
+    if (title) this.updateSession(String(agent.id), title)
   }
 
   private isRoot(agent: Agent): boolean {

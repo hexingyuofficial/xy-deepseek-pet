@@ -29,6 +29,8 @@ Known atlas layouts use `192 x 208` cells:
 | v1 | `1536 x 1872` | 8 columns x 9 rows |
 | v2 | `1536 x 2288` | 8 columns x 11 rows |
 
+Classic packages created before `spriteVersionNumber` was introduced may omit the field. Matching Petdex's own parser, omission means v1; explicit unsupported values such as `null` or `3` remain invalid.
+
 The importer must reject inconsistent dimensions, missing images, unknown required metadata, path traversal, archive bombs, and unsupported file types with an actionable error. It must never infer executable behavior from package contents.
 
 ### State mapping
@@ -74,7 +76,7 @@ The richer V2 whale theme adds entry, persistent, exit, and direct-reaction slot
 
 An accepted package therefore never fails because it lacks a whale-specific transition. A source asset is reused only according to this table; the importer does not invent semantic success, failure, or attention behavior from filenames. Unsupported formats are rejected with an actionable explanation instead of being partially activated.
 
-Native V2 packs may declare any number of regular completion animations, jackpot completion animations, and correlated failure sequences within the global archive, file-count, and decoded-pixel safety budgets. The theme declares membership only: product code fixes the jackpot tier at `0.1%`, divides each tier evenly, and selects failure sequences evenly. Neither imported metadata nor the theme UI can override those probabilities.
+Native V2 packs may declare any number of regular completion animations, jackpot completion animations, and correlated failure sequences within the global archive size and file-count safety limits. The theme declares membership only: product code fixes the jackpot tier at `0.1%`, divides each tier evenly, and selects failure sequences evenly. Neither imported metadata nor the theme UI can override those probabilities.
 
 ## User flow
 
@@ -105,7 +107,7 @@ Importer support does not grant redistribution rights. Petdex software can be MI
 
 ## Security policy
 
-All imported themes are treated as untrusted data. Import happens in a bounded worker with archive entry, uncompressed-size, pixel-count, file-count, and path limits. Symlinks, absolute paths, parent traversal, URLs, HTML, scripts, binaries, XML behavior definitions, and unknown files are ignored or rejected. Only decoded image pixels and allowlisted metadata fields cross into the managed native theme.
+All imported themes are treated as untrusted data. Import enforces archive-entry, compressed-size, expanded-size, file-count, extension, and path limits. Petdex WebP atlases also require the exact dimensions defined by their format version. Symlinks, absolute paths, parent traversal, URLs, HTML, scripts, binaries, XML behavior definitions, and unknown files are ignored or rejected. Only declared image files and allowlisted metadata fields cross into the managed native theme.
 
 ## Public references
 

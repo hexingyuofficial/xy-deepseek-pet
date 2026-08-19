@@ -217,18 +217,17 @@ function showFailure(message) {
   }
 }
 
-async function openReadyHarness(service) {
+async function waitForReadyHarness(service) {
   if (!await waitForWeb(30_000, service)) throw new Error(`Harness Web did not become ready. See ${serviceLogPath}`)
-  const bridge = readBridge()
-  openClient(bridge?.clientUrl ?? defaultClientUrl)
-  return bridge
 }
 
 async function main() {
   log('activation requested')
   if (!acquireLock()) {
     log('another launcher is starting; waiting for it')
-    await openReadyHarness(undefined)
+    await waitForReadyHarness(undefined)
+    const readyBridge = readBridge()
+    openClient(readyBridge?.clientUrl ?? defaultClientUrl)
     const bridge = await waitForBridge(5_000)
     if (bridge) launchDesktop()
     return
@@ -238,7 +237,9 @@ async function main() {
     const webState = await probeWeb()
     if (webState === 'occupied') throw new Error('Port 3080 is occupied by a service that is not DeepSeek Harness.')
     const service = webState === 'harness' ? undefined : await startHarness()
-    bridge ??= await openReadyHarness(service)
+    await waitForReadyHarness(service)
+    bridge ??= readBridge()
+    openClient(bridge?.clientUrl ?? defaultClientUrl)
     if (!bridge) bridge = await waitForBridge(12_000)
     if (bridge) launchDesktop()
     else log('Harness opened, but the pet bridge was not available within 12 seconds')

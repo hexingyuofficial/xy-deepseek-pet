@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { consumePetSettingsUrl } from '@xy-deepseek-pet/protocol'
 import { SoundSettings, type SoundsRemote } from '../../sounds/src/settings-view.js'
 import TYPERT_REMOTE from './remote.js'
+import { isFileDrag, petFileDropKind, type PetFileDropKind } from './file-drop.js'
+import { shortcutFromKey } from './shortcut-recorder.js'
 import type { PetSettings, PetSettingsSnapshot } from './settings.js'
 import calmIcon from '../assets/whale-calm.png'
 
@@ -36,18 +39,24 @@ function toBase64(buffer: ArrayBuffer): string {
 
 const copy = {
   zh: {
-    title: '桌面宠物', open: '打开宠物', close: '关闭宠物', sidebarOpen: '打开桌宠', sidebarClose: '关闭桌宠', theme: '宠物主题', size: '宠物大小', more: '更多设置',
-    walking: '允许走动', motion: '减少动画', bubbles: '消息气泡', autoLaunch: '随 Harness 启动', gesture: '打开 Harness', longPress: '长按', doubleClick: '双击',
+    title: '桌面宠物', open: '打开宠物', close: '关闭宠物', theme: '宠物主题', size: '宠物大小', treasuresFound: '找到的宝箱数量', more: '更多设置',
+    walking: '自动走动', motion: '减少动画', bubbles: '消息气泡', autoLaunch: '随 Harness 启动', showOnFullScreen: '全屏时显示', gesture: '打开 Harness', longPress: '长按', doubleClick: '双击',
+    movement: '趣味移动', frequency: '走动频率', distance: '单次距离', chase: '追着鼠标跑', chaseSpeed: '追逐速度', fling: '抛掷惯性', resistance: '抛掷阻力', summon: '快捷键召唤', summonShortcut: '召唤快捷键', shortcutPrompt: '请按下快捷键…', shortcutHint: '点击输入框即可重新录入', summonChat: '召唤后展开最近聊天',
+    veryOccasional: '很偶尔', occasional: '偶尔', sometimes: '有时', frequent: '经常', veryFrequent: '很经常',
+    tinyStep: '小步', easyStep: '随意', bigStep: '大步', slow: '慢悠悠', lively: '积极', speedy: '飞快', lowResistance: '滑得远', balancedResistance: '适中', highResistance: '停得快',
     menu: '右键菜单', menuHint: '关闭桌宠始终保留，插件动作也可在这里开关。', openClient: '打开 Harness', chat: '回复最近消息', settings: '打开设置',
-    launcher: '桌面快捷方式', launcherHint: '创建一个同时打开 Harness、网页和桌宠的桌面入口', launcherName: '名称', launcherIcon: '图标', calm: '卡通鲸鱼', customIcon: '拖入自定义 PNG', customIconHint: '拖入 PNG，或点击选择', createLauncher: '创建到桌面', createdLauncher: '已创建',
-    import: '导入宠物包', importHint: '拖入下载的 ZIP 宠物包，兼容本项目主题与 Petdex 格式', browse: '选择 ZIP', importing: '正在导入…', saved: '已保存', loading: '加载中…',
+    launcher: '桌面快捷方式', launcherHint: '创建一个同时打开 Harness、网页和桌宠的桌面入口', launcherName: '名称', launcherIcon: '图标', calm: '卡通鲸鱼', customIcon: '选择自定义 PNG', customIconHint: '点击或拖入 PNG', createLauncher: '创建到桌面', createdLauncher: '已创建',
+    import: '导入宠物包', importHint: '拖入或选择 ZIP 宠物包，兼容本项目主题与 Petdex 格式', browse: '选择 ZIP', importing: '正在导入…', saved: '已保存', loading: '加载中…',
   },
   en: {
-    title: 'Desktop pet', open: 'Open pet', close: 'Close pet', sidebarOpen: 'Open pet', sidebarClose: 'Close pet', theme: 'Pet theme', size: 'Pet size', more: 'More settings',
-    walking: 'Allow wandering', motion: 'Reduced motion', bubbles: 'Message bubbles', autoLaunch: 'Start with Harness', gesture: 'Open Harness', longPress: 'Long press', doubleClick: 'Double click',
+    title: 'Desktop pet', open: 'Open pet', close: 'Close pet', theme: 'Pet theme', size: 'Pet size', treasuresFound: 'Treasure chests found', more: 'More settings',
+    walking: 'Auto wander', motion: 'Reduced motion', bubbles: 'Message bubbles', autoLaunch: 'Start with Harness', showOnFullScreen: 'Show in full screen', gesture: 'Open Harness', longPress: 'Long press', doubleClick: 'Double click',
+    movement: 'Playful movement', frequency: 'Wander frequency', distance: 'Wander distance', chase: 'Chase the pointer', chaseSpeed: 'Chase speed', fling: 'Throw inertia', resistance: 'Throw resistance', summon: 'Summon shortcut', summonShortcut: 'Shortcut', shortcutPrompt: 'Press a shortcut…', shortcutHint: 'Click the field to record a new shortcut', summonChat: 'Open recent chat after summoning',
+    veryOccasional: 'Rarely', occasional: 'Occasionally', sometimes: 'Sometimes', frequent: 'Often', veryFrequent: 'Very often',
+    tinyStep: 'Short', easyStep: 'Casual', bigStep: 'Long', slow: 'Leisurely', lively: 'Lively', speedy: 'Speedy', lowResistance: 'Glides farther', balancedResistance: 'Balanced', highResistance: 'Stops sooner',
     menu: 'Right-click menu', menuHint: 'Quit pet is always available. Plugin actions can also be toggled here.', openClient: 'Open Harness', chat: 'Reply to latest', settings: 'Open settings',
-    launcher: 'Desktop shortcut', launcherHint: 'Create a desktop entry that opens Harness, the web client, and the pet', launcherName: 'Name', launcherIcon: 'Icon', calm: 'Cartoon whale', customIcon: 'Drop custom PNG', customIconHint: 'Drop a PNG, or click to choose', createLauncher: 'Create on desktop', createdLauncher: 'Created',
-    import: 'Import pet pack', importHint: 'Drop a downloaded ZIP pet pack; native themes and Petdex are supported', browse: 'Choose ZIP', importing: 'Importing…', saved: 'Saved', loading: 'Loading…',
+    launcher: 'Desktop shortcut', launcherHint: 'Create a desktop entry that opens Harness, the web client, and the pet', launcherName: 'Name', launcherIcon: 'Icon', calm: 'Cartoon whale', customIcon: 'Choose custom PNG', customIconHint: 'Click or drop PNG', createLauncher: 'Create on desktop', createdLauncher: 'Created',
+    import: 'Import pet pack', importHint: 'Drop or choose a ZIP pet pack; native themes and Petdex are supported', browse: 'Choose ZIP', importing: 'Importing…', saved: 'Saved', loading: 'Loading…',
   },
 } as const
 
@@ -66,23 +75,30 @@ const styles: Record<string, React.CSSProperties> = {
   check: { display: 'flex', minHeight: 30, alignItems: 'center', gap: 8, fontSize: 13 },
   checkbox: { width: 16, height: 16, accentColor: 'var(--dsw-alias-accent-primary, #1688f8)' },
   range: { width: '100%', accentColor: 'var(--dsw-alias-accent-primary, #1688f8)' },
-  rangeWrap: { display: 'grid', gridTemplateColumns: '1fr 48px', alignItems: 'center', gap: 8 },
+  rangeWrap: { display: 'grid', gridTemplateColumns: '1fr 68px', alignItems: 'center', gap: 8 },
   output: { textAlign: 'right', fontSize: 12, fontVariantNumeric: 'tabular-nums' },
   details: { padding: '3px 0' }, summary: { cursor: 'pointer', fontSize: 13 },
-  disclosureSummary: { display: 'flex', minHeight: 34, alignItems: 'center', gap: 7, cursor: 'pointer', listStyle: 'none', fontSize: 13 },
+  disclosureSummary: { display: 'flex', minHeight: 34, alignItems: 'center', gap: 7, cursor: 'pointer', listStyle: 'none', outline: 'none', fontSize: 13 },
   disclosure: { display: 'inline-block', width: 12, flex: '0 0 12px', fontSize: 10, lineHeight: 1, textAlign: 'center' },
-  textInput: { width: '100%', minHeight: 34, padding: '5px 9px', color: 'inherit', background: 'var(--dsw-alias-bg-base, rgba(255,255,255,.04))', border: '1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))', borderRadius: 6 },
+  disclosureBody: { padding: '2px 0 8px' },
+  textInput: { width: '100%', height: 34, boxSizing: 'border-box', padding: '0 9px', lineHeight: '32px', color: 'inherit', background: 'var(--dsw-alias-bg-base, rgba(255,255,255,.04))', border: '1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))', borderRadius: 6 },
   choices: { display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 0 2px' },
-  iconChoice: { display: 'grid', gridTemplateColumns: '38px 1fr', alignItems: 'center', gap: 7, minHeight: 46, padding: '4px 8px', textAlign: 'left' },
-  iconPreview: { width: 34, height: 34, objectFit: 'contain', imageRendering: 'auto' },
-  drop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 52, margin: '5px 0 3px', padding: '7px 10px', border: '1px dashed var(--dsw-alias-border-l2, rgba(255,255,255,.25))', borderRadius: 6 },
-  iconDrop: { display: 'grid', gridTemplateColumns: '38px 1fr', alignItems: 'center', gap: 7, minHeight: 54, padding: '6px 8px', textAlign: 'left', borderStyle: 'dashed' },
+  launcherActions: { display: 'grid', gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 1fr)', alignItems: 'stretch', gap: 6 },
+  iconChoice: { display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr)', alignItems: 'center', gap: 5, height: 46, minHeight: 0, padding: '3px 7px', textAlign: 'left', overflow: 'hidden' },
+  iconPreview: { width: 28, height: 28, objectFit: 'contain', imageRendering: 'auto' },
+  iconText: { display: 'block', minWidth: 0, overflow: 'hidden' },
+  iconLabel: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 },
+  drop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 52, margin: '5px 0 3px', padding: '7px 10px', border: '1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))', borderRadius: 6 },
+  dropActive: { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)', background: 'var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))' },
+  iconDrop: { display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr)', alignItems: 'center', gap: 5, height: 46, minHeight: 0, padding: '3px 7px', textAlign: 'left', overflow: 'hidden' },
   hint: { margin: '2px 0 0', color: 'var(--dsw-alias-label-secondary, #aeb3bb)', fontSize: 12 },
   status: { minHeight: 18, marginTop: 4, fontSize: 12, color: 'var(--dsw-alias-label-secondary, #aeb3bb)' },
   error: { minHeight: 18, marginTop: 4, fontSize: 12, color: 'var(--dsw-alias-danger, #ff6b6b)' },
 }
 
 const menuActions = ['open-client', 'chat', 'settings'] as const
+const PET_FILE_DROP_EVENT = 'xy-deepseek-pet-file-drop'
+type PetFileDropDetail = { kind?: PetFileDropKind; phase: 'hover' | 'leave' | 'drop'; files?: File[] }
 let soundsRemote: SoundsRemote | undefined
 const soundRemoteListeners = new Set<(remote: SoundsRemote | undefined) => void>()
 
@@ -108,6 +124,34 @@ function useDesktopToggle(remote: PetRemote, reportError?: (message: string) => 
   return { open, busy, toggle }
 }
 
+function installPetFileDropIsolation(): () => void {
+  const handle = (event: DragEvent): void => {
+    const settings = document.querySelector<HTMLElement>('[data-xy-deepseek-pet-settings]')
+    const fileDrag = isFileDrag(event.dataTransfer?.types ?? [])
+    if (!settings || settings.getClientRects().length === 0 || !fileDrag) return
+
+    // The Harness composer owns page-level file drops. While its settings modal
+    // is open, intercept file drags at window capture so its full-page overlay
+    // cannot cover the two pet-specific drop targets.
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const pointed = document.elementFromPoint(event.clientX, event.clientY)
+    const zone = pointed?.closest<HTMLElement>('[data-xy-pet-drop-zone]')
+    const kind = petFileDropKind(zone?.dataset.xyPetDropZone)
+    if (event.dataTransfer) event.dataTransfer.dropEffect = kind ? 'copy' : 'none'
+    const phase = event.type === 'drop' ? 'drop' : event.type === 'dragleave' ? 'leave' : 'hover'
+    const detail: PetFileDropDetail = {
+      phase,
+      ...(kind ? { kind } : {}),
+      ...(phase === 'drop' ? { files: Array.from(event.dataTransfer?.files ?? []) } : {}),
+    }
+    window.dispatchEvent(new CustomEvent<PetFileDropDetail>(PET_FILE_DROP_EVENT, { detail }))
+  }
+  const events = ['dragenter', 'dragover', 'dragleave', 'drop'] as const
+  for (const event of events) window.addEventListener(event, handle, { capture: true })
+  return () => { for (const event of events) window.removeEventListener(event, handle, { capture: true }) }
+}
+
 function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement {
   const locale = useChinese() ? 'zh-CN' : 'en'
   const c = locale === 'zh-CN' ? copy.zh : copy.en
@@ -115,15 +159,16 @@ function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement 
   const [draft, setDraft] = useState<PetSettings>()
   const [status, setStatus] = useState<string>(c.loading)
   const [error, setError] = useState('')
-  const [dragging, setDragging] = useState(false)
-  const [iconDragging, setIconDragging] = useState(false)
   const [soundRemote, setSoundRemote] = useState<SoundsRemote | undefined>(soundsRemote)
   const [launcherOpen, setLauncherOpen] = useState(false)
+  const [movementOpen, setMovementOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [shortcutRecording, setShortcutRecording] = useState(false)
   const [launcherName, setLauncherName] = useState('DeepSeek Harness')
   const [launcherIcon, setLauncherIcon] = useState<'calm' | 'custom'>('calm')
   const [launcherFile, setLauncherFile] = useState<File>()
   const [customIconPreview, setCustomIconPreview] = useState('')
+  const [dropTarget, setDropTarget] = useState<PetFileDropKind>()
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
   const fileInput = useRef<HTMLInputElement>(null)
   const launcherFileInput = useRef<HTMLInputElement>(null)
@@ -132,22 +177,16 @@ function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement 
 
   useEffect(() => {
     let live = true
-    remote.snapshot().then(remoteValue).then((value) => { if (live) { setSnapshot(value); setDraft(value.config); setStatus('') } }).catch((reason: unknown) => live && setError(String(reason)))
-    return () => { live = false; if (saveTimer.current) clearTimeout(saveTimer.current) }
+    const refresh = (initial = false) => remote.snapshot().then(remoteValue).then((value) => {
+      if (!live) return
+      setSnapshot(value)
+      if (initial) { setDraft(value.config); setStatus('') }
+    }).catch((reason: unknown) => { if (live && initial) setError(String(reason)) })
+    void refresh(true)
+    const timer = window.setInterval(() => void refresh(), 2_000)
+    return () => { live = false; window.clearInterval(timer); if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [remote])
   useEffect(() => { soundRemoteListeners.add(setSoundRemote); return () => { soundRemoteListeners.delete(setSoundRemote) } }, [])
-  useEffect(() => {
-    const preventFileNavigation = (event: DragEvent) => {
-      if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) event.preventDefault()
-    }
-    window.addEventListener('dragover', preventFileNavigation)
-    window.addEventListener('drop', preventFileNavigation)
-    return () => {
-      window.removeEventListener('dragover', preventFileNavigation)
-      window.removeEventListener('drop', preventFileNavigation)
-    }
-  }, [])
-
   const commit = useCallback(async (next: PetSettings) => {
     setError(''); setStatus('…')
     try { const value = remoteValue(await remote.update(next)); setSnapshot(value); setDraft(value.config); setStatus(c.saved) }
@@ -181,26 +220,48 @@ function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement 
     setLauncherIcon('custom')
     setError('')
   }, [locale])
-  const droppedFile = (event: React.DragEvent): File | undefined => {
-    event.preventDefault()
-    event.stopPropagation()
-    const item = Array.from(event.dataTransfer.items).find((candidate) => candidate.kind === 'file')
-    event.dataTransfer.dropEffect = 'copy'
-    return item?.getAsFile() ?? event.dataTransfer.files[0] ?? undefined
-  }
-
-  if (!snapshot || !draft) return React.createElement('div', { style: styles.root }, error || status)
+  useEffect(() => {
+    const handleDrop = (event: Event): void => {
+      const detail = (event as CustomEvent<PetFileDropDetail>).detail
+      if (!detail || detail.phase === 'leave') {
+        setDropTarget(undefined)
+        return
+      }
+      setDropTarget(detail.phase === 'hover' ? detail.kind : undefined)
+      if (detail.phase !== 'drop' || !detail.kind) return
+      const file = detail.files?.[0]
+      if (!file) return
+      if (detail.kind === 'theme') void importFile(file)
+      else chooseLauncherFile(file)
+    }
+    window.addEventListener(PET_FILE_DROP_EVENT, handleDrop)
+    return () => window.removeEventListener(PET_FILE_DROP_EVENT, handleDrop)
+  }, [chooseLauncherFile, importFile])
+  if (!snapshot || !draft) return React.createElement('div', { 'data-xy-deepseek-pet-settings': '', style: styles.root }, error || status)
   const checkbox = (label: string, checked: boolean, change: (checked: boolean) => void) => React.createElement('label', { style: styles.check }, React.createElement('input', { type: 'checkbox', style: styles.checkbox, checked, onChange: (event: React.ChangeEvent<HTMLInputElement>) => change(event.currentTarget.checked) }), label)
+  const levelLabel = (value: number, labels: readonly string[]) => labels[Math.min(labels.length - 1, Math.floor(value / (100 / labels.length)))]
+  const movementSlider = (label: string, value: number, labels: readonly string[], change: (value: number) => void, disabled = false) => {
+    const valueLabel = levelLabel(value, labels)
+    return React.createElement('div', { style: { ...styles.row, ...(disabled ? { opacity: 0.45 } : {}) } }, label,
+      React.createElement('div', { style: { ...styles.rangeWrap, ...styles.value } },
+        React.createElement('input', {
+          type: 'range', min: 0, max: 100, step: 1, value, disabled, style: styles.range,
+          'aria-label': label, 'aria-valuetext': valueLabel,
+          onChange: (event: React.ChangeEvent<HTMLInputElement>) => change(Number(event.currentTarget.value)),
+        }),
+        React.createElement('output', { style: styles.output }, valueLabel)))
+  }
   const menuLabel = { 'open-client': c.openClient, chat: c.chat, settings: c.settings }
   const selectedTheme = snapshot.themes.find((theme) => theme.id === draft.themeId)
   const iconOption = (id: 'calm' | 'custom', label: string, source: string) => React.createElement('button', {
-    key: id, type: 'button', style: { ...styles.button, ...(id === 'custom' ? styles.iconDrop : styles.iconChoice), ...(launcherIcon === id || (id === 'custom' && iconDragging) ? { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)' } : {}) },
+    key: id, type: 'button', title: id === 'custom' ? c.customIconHint : label, style: { ...styles.button, ...(id === 'custom' ? styles.iconDrop : styles.iconChoice), ...(!source ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}), ...(launcherIcon === id ? { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)' } : {}), ...(id === 'custom' && dropTarget === 'icon' ? styles.dropActive : {}) },
+    ...(id === 'custom' ? { 'data-xy-pet-drop-zone': 'icon' } : {}),
     onClick: () => id === 'custom' ? launcherFileInput.current?.click() : setLauncherIcon(id),
-    onDragEnter: id === 'custom' ? (event: React.DragEvent) => { event.preventDefault(); setIconDragging(true) } : undefined,
-    onDragOver: id === 'custom' ? (event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' } : undefined,
-    onDragLeave: id === 'custom' ? (event: React.DragEvent) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIconDragging(false) } : undefined,
-    onDrop: id === 'custom' ? (event: React.DragEvent) => { setIconDragging(false); const file = droppedFile(event); if (file) chooseLauncherFile(file) } : undefined,
-  }, source ? React.createElement('img', { src: source, alt: '', style: styles.iconPreview }) : React.createElement('span', { style: styles.iconPreview }), React.createElement('span', null, id === 'custom' ? React.createElement(React.Fragment, null, React.createElement('span', null, label), React.createElement('span', { style: { ...styles.hint, display: 'block' } }, c.customIconHint)) : label))
+  }, source && React.createElement('img', { src: source, alt: '', style: styles.iconPreview }), React.createElement('span', { style: styles.iconText }, id === 'custom'
+    ? React.createElement(React.Fragment, null,
+        React.createElement('span', { style: styles.iconLabel }, label),
+        React.createElement('span', { style: { ...styles.hint, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 } }, c.customIconHint))
+    : React.createElement('span', { style: styles.iconLabel }, label)))
   const createLauncher = async () => {
     setError(''); setStatus('…')
     try {
@@ -212,29 +273,81 @@ function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement 
     } catch (reason) { setError(String(reason)); setStatus('') }
   }
 
-  return React.createElement('div', { style: styles.root },
+  return React.createElement('div', { 'data-xy-deepseek-pet-settings': '', style: styles.root },
     React.createElement('div', { style: styles.header }, React.createElement('h3', { style: styles.title }, c.title), React.createElement('button', { type: 'button', style: styles.primary, disabled: desktop.busy, onClick: desktop.toggle }, desktop.open ? c.close : c.open)),
     React.createElement('div', { style: styles.row }, c.theme,
       React.createElement('details', { style: { ...styles.details, ...styles.value } }, React.createElement('summary', { style: styles.summary }, selectedTheme?.name ?? draft.themeId), React.createElement('div', { style: styles.choices }, ...snapshot.themes.map((theme) => React.createElement('button', { key: theme.id, type: 'button', style: { ...styles.button, ...(theme.id === draft.themeId ? { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)' } : {}) }, onClick: () => mutate((next) => { next.themeId = theme.id }) }, theme.name))))),
-    React.createElement('div', { style: styles.row }, c.size, React.createElement('div', { style: { ...styles.rangeWrap, ...styles.value } }, React.createElement('input', { type: 'range', min: 0.4, max: 2, step: 0.05, value: draft.scale, style: styles.range, 'aria-label': c.size, onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const value = Number(event.currentTarget.value); mutate((next) => { next.scale = value }) } }), React.createElement('output', { style: styles.output }, `${Math.round(draft.scale * 100)}%`))),
+    React.createElement('div', { style: styles.row }, c.size, React.createElement('div', { style: { ...styles.rangeWrap, ...styles.value } }, React.createElement('input', { type: 'range', min: 0.2, max: 2, step: 0.05, value: draft.scale, style: styles.range, 'aria-label': c.size, onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const value = Number(event.currentTarget.value); mutate((next) => { next.scale = value }) } }), React.createElement('output', { style: styles.output }, `${Math.round(draft.scale * 100)}%`))),
+    React.createElement('div', { style: styles.row }, c.treasuresFound, React.createElement('output', { style: { ...styles.output, ...styles.value } }, `🪎 × ${snapshot.stats.treasuresFound}`)),
     React.createElement('div', { style: styles.row }, c.gesture, React.createElement('div', { style: { ...styles.segment, ...styles.value } },
       React.createElement('button', { type: 'button', style: { ...styles.segmentButton, ...(draft.activationGesture === 'longPress' ? styles.segmentActive : {}) }, onClick: () => mutate((next) => { next.activationGesture = 'longPress' }) }, c.longPress),
       React.createElement('button', { type: 'button', style: { ...styles.segmentButton, ...(draft.activationGesture === 'doubleClick' ? styles.segmentActive : {}) }, onClick: () => mutate((next) => { next.activationGesture = 'doubleClick' }) }, c.doubleClick))),
     React.createElement('div', { style: styles.checks },
       checkbox(c.walking, draft.walkingEnabled, (value) => mutate((next) => { next.walkingEnabled = value })),
       checkbox(c.bubbles, draft.bubbleVisible, (value) => mutate((next) => { next.bubbleVisible = value })),
-      checkbox(c.autoLaunch, draft.autoLaunch, (value) => mutate((next) => { next.autoLaunch = value }))),
-    React.createElement('div', { role: 'button', tabIndex: 0, 'aria-label': c.importHint, 'data-pet-pack-drop': true, style: { ...styles.drop, ...(dragging ? { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)', background: 'var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))' } : {}) }, onKeyDown: (event: React.KeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') fileInput.current?.click() }, onDragEnter: (event: React.DragEvent) => { event.preventDefault(); setDragging(true) }, onDragOver: (event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' }, onDragLeave: (event: React.DragEvent) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false) }, onDrop: (event: React.DragEvent) => { setDragging(false); const file = droppedFile(event); if (file) void importFile(file) } }, React.createElement('div', null, React.createElement('div', null, c.import), React.createElement('p', { style: styles.hint }, c.importHint)), React.createElement('button', { type: 'button', style: styles.button, onClick: (event: React.MouseEvent) => { event.stopPropagation(); fileInput.current?.click() } }, c.browse)),
+      checkbox(c.autoLaunch, draft.autoLaunch, (value) => mutate((next) => { next.autoLaunch = value })),
+      checkbox(c.showOnFullScreen, draft.showOnFullScreen, (value) => mutate((next) => { next.showOnFullScreen = value }))),
+    React.createElement('div', { style: styles.row }, c.summon,
+      React.createElement('div', { style: { ...styles.value, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 16px', alignItems: 'center', gap: 8 } },
+        React.createElement('div', { style: { minWidth: 0 } },
+          React.createElement('input', {
+          type: 'text', maxLength: 64, value: shortcutRecording ? c.shortcutPrompt : draft.teleportShortcut, readOnly: true, disabled: !draft.teleportShortcutEnabled,
+          style: { ...styles.textInput, width: '100%', cursor: draft.teleportShortcutEnabled ? 'pointer' : 'default', opacity: draft.teleportShortcutEnabled ? 1 : 0.45, ...(shortcutRecording ? { borderColor: 'var(--dsw-alias-accent-primary, #1688f8)', boxShadow: '0 0 0 2px color-mix(in srgb, var(--dsw-alias-accent-primary, #1688f8) 20%, transparent)' } : {}) },
+          'aria-label': c.summonShortcut, 'aria-describedby': 'xy-pet-shortcut-hint',
+          onFocus: () => setShortcutRecording(true),
+          onBlur: () => setShortcutRecording(false),
+          onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.currentTarget.blur()
+              return
+            }
+            const shortcut = shortcutFromKey(event)
+            if (!shortcut) return
+            event.preventDefault()
+            mutate((next) => { next.teleportShortcut = shortcut })
+            setShortcutRecording(false)
+            event.currentTarget.blur()
+          },
+          }),
+          React.createElement('div', { id: 'xy-pet-shortcut-hint', style: { ...styles.hint, marginTop: 4 } }, shortcutRecording ? c.shortcutPrompt : c.shortcutHint)),
+        React.createElement('input', {
+          type: 'checkbox', style: styles.checkbox, checked: draft.teleportShortcutEnabled, 'aria-label': c.summon,
+          onChange: (event: React.ChangeEvent<HTMLInputElement>) => mutate((next) => { next.teleportShortcutEnabled = event.currentTarget.checked }),
+        }))),
+    React.createElement('div', { style: styles.checks },
+      checkbox(c.summonChat, draft.teleportOpensRecentChat, (value) => mutate((next) => { next.teleportOpensRecentChat = value }))),
+    React.createElement('details', { open: movementOpen, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setMovementOpen(event.currentTarget.open), style: styles.details },
+      React.createElement('summary', { style: styles.disclosureSummary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, movementOpen ? '▼' : '▶'), React.createElement('span', null, c.movement)),
+      React.createElement('div', { style: styles.disclosureBody },
+        movementSlider(c.frequency, draft.wanderFrequency, [c.veryOccasional, c.occasional, c.sometimes, c.frequent, c.veryFrequent], (value) => mutate((next) => { next.wanderFrequency = value })),
+        movementSlider(c.distance, draft.wanderDistance, [c.tinyStep, c.easyStep, c.bigStep], (value) => mutate((next) => { next.wanderDistance = value })),
+        React.createElement('div', { style: styles.row }, c.chase,
+          React.createElement('div', { style: { ...styles.value, display: 'flex', justifyContent: 'flex-end' } }, React.createElement('input', {
+            type: 'checkbox', style: styles.checkbox, checked: draft.mouseChaseEnabled, 'aria-label': c.chase,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => mutate((next) => { next.mouseChaseEnabled = event.currentTarget.checked }),
+          }))),
+        movementSlider(c.chaseSpeed, draft.mouseChaseSpeed, [c.slow, c.lively, c.speedy], (value) => mutate((next) => { next.mouseChaseSpeed = value }), !draft.mouseChaseEnabled),
+        React.createElement('div', { style: styles.row }, c.fling,
+          React.createElement('div', { style: { ...styles.value, display: 'flex', justifyContent: 'flex-end' } }, React.createElement('input', {
+            type: 'checkbox', style: styles.checkbox, checked: draft.flingEnabled, 'aria-label': c.fling,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => mutate((next) => { next.flingEnabled = event.currentTarget.checked }),
+          }))),
+        movementSlider(c.resistance, draft.flingResistance, [c.lowResistance, c.balancedResistance, c.highResistance], (value) => mutate((next) => { next.flingResistance = value }), !draft.flingEnabled))),
+    React.createElement('div', { 'data-xy-pet-drop-zone': 'theme', style: { ...styles.drop, ...(dropTarget === 'theme' ? styles.dropActive : {}) } }, React.createElement('div', null, React.createElement('div', null, c.import), React.createElement('p', { style: styles.hint }, c.importHint)), React.createElement('button', { type: 'button', style: styles.button, onClick: () => fileInput.current?.click() }, c.browse)),
     React.createElement('input', { ref: fileInput, type: 'file', accept: '.zip,application/zip', hidden: true, onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void importFile(file) } }),
     React.createElement('details', { open: launcherOpen, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setLauncherOpen(event.currentTarget.open), style: styles.details },
       React.createElement('summary', { style: styles.disclosureSummary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, launcherOpen ? '▼' : '▶'), React.createElement('span', null, c.launcher)),
-      React.createElement('div', { style: { padding: '2px 0 8px 20px' } },
+      React.createElement('div', { style: styles.disclosureBody },
         React.createElement('p', { style: styles.hint }, c.launcherHint),
         React.createElement('div', { style: styles.row }, c.launcherName, React.createElement('input', { type: 'text', maxLength: 48, value: launcherName, style: { ...styles.textInput, ...styles.value }, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setLauncherName(event.currentTarget.value) })),
-        React.createElement('div', { style: styles.row }, c.launcherIcon, React.createElement('div', { style: { ...styles.choices, ...styles.value } }, iconOption('calm', c.calm, calmIcon), iconOption('custom', launcherFile?.name ?? c.customIcon, customIconPreview))),
+        React.createElement('div', { style: styles.row }, c.launcherIcon, React.createElement('div', { style: { ...styles.launcherActions, ...styles.value } },
+          iconOption('calm', c.calm, calmIcon),
+          iconOption('custom', launcherFile?.name ?? c.customIcon, customIconPreview),
+          React.createElement('button', { type: 'button', style: { ...styles.button, height: 46, minHeight: 0, padding: '0 8px' }, onClick: () => void createLauncher() }, c.createLauncher))),
         React.createElement('input', { ref: launcherFileInput, type: 'file', accept: '.png,image/png', hidden: true, onChange: (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) chooseLauncherFile(file) } }),
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', paddingTop: 6 } }, React.createElement('button', { type: 'button', style: styles.button, onClick: () => void createLauncher() }, c.createLauncher)))),
-    React.createElement('details', { open: moreOpen, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setMoreOpen(event.currentTarget.open), style: styles.details }, React.createElement('summary', { style: styles.disclosureSummary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, moreOpen ? '▼' : '▶'), React.createElement('span', null, c.more)), React.createElement('div', { style: { padding: '2px 0 6px 20px' } },
+      )),
+    React.createElement('details', { open: moreOpen, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => setMoreOpen(event.currentTarget.open), style: styles.details }, React.createElement('summary', { style: styles.disclosureSummary }, React.createElement('span', { style: styles.disclosure, 'aria-hidden': true }, moreOpen ? '▼' : '▶'), React.createElement('span', null, c.more)), React.createElement('div', { style: { ...styles.disclosureBody, paddingBottom: 6 } },
       React.createElement('div', { style: styles.checks }, checkbox(c.motion, draft.reducedMotion, (value) => mutate((next) => { next.reducedMotion = value }))),
       React.createElement('details', { style: styles.details }, React.createElement('summary', { style: styles.summary }, c.menu), React.createElement('p', { style: styles.hint }, c.menuHint), React.createElement('div', { style: styles.checks },
         ...menuActions.map((action) => checkbox(menuLabel[action], draft.menuActions.includes(action), (checked) => mutate((next) => { next.menuActions = checked ? [...new Set([...next.menuActions, action])] : next.menuActions.filter((item) => item !== action) }))),
@@ -244,11 +357,25 @@ function PetSettingsView({ remote }: { remote: PetRemote }): React.ReactElement 
   )
 }
 
-function OpenPetAction(props: { wide: boolean; remote: PetRemote }): React.ReactElement {
-  const c = useChinese() ? copy.zh : copy.en
-  const desktop = useDesktopToggle(props.remote)
-  const label = desktop.open ? c.sidebarClose : c.sidebarOpen
-  return React.createElement('button', { type: 'button', title: label, 'aria-label': label, disabled: desktop.busy, onClick: desktop.toggle, style: { width: props.wide ? '100%' : 36, minHeight: 32, border: '1px solid var(--dsw-alias-border-l2, #d8dee3)', borderRadius: 6, background: 'var(--dsw-alias-bg-base, #fff)', color: 'var(--dsw-alias-label-primary, #172026)', cursor: 'pointer', fontSize: 12 } }, props.wide ? label : '🐋')
+function installSettingsDeepLink(): () => void {
+  const request = consumePetSettingsUrl(window.location.href)
+  if (!request.requested) return () => undefined
+  let attempts = 0
+  const timer = window.setInterval(() => {
+    attempts += 1
+    const target = document.querySelector<HTMLElement>('[data-xy-deepseek-pet-settings]')
+    if (target) {
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      window.history.replaceState(window.history.state, '', request.cleanUrl)
+      window.clearInterval(timer)
+      return
+    }
+    const trigger = document.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
+    else document.querySelector<HTMLButtonElement>('[role="dialog"] nav button')?.click()
+    if (attempts >= 100) window.clearInterval(timer)
+  }, 50)
+  return () => window.clearInterval(timer)
 }
 
 export async function apply(ctx: any): Promise<() => Promise<void>> {
@@ -256,21 +383,21 @@ export async function apply(ctx: any): Promise<() => Promise<void>> {
   const presenceEvent = 'xy-deepseek-pet-settings-presence'
   ;(globalThis as any)[presenceKey] = true
   globalThis.dispatchEvent?.(new Event(presenceEvent))
+  const disposeFileDrops = installPetFileDropIsolation()
   const unmountRemote = await ctx.remote.$mount(TYPERT_REMOTE)
   const settingsFiber = ctx.inject(['remote.xyPet'], (scope: any) => {
     const remote = scope.remote.xyPet as PetRemote
     scope.slots.inject('settings.general.item', () => scope.slots.register({ name: 'settings.general.item', id: 'xy-deepseek-pet', order: 100, label: useChinese() ? '桌面宠物' : 'Desktop pet' }, () => React.createElement(PetSettingsView, { remote })))
   })
   const soundsFiber = ctx.inject(['remote.xySounds'], (scope: any) => { soundsRemote = scope.remote.xySounds as SoundsRemote; for (const listener of soundRemoteListeners) listener(soundsRemote) })
-  const actionFiber = ctx.inject(['remote.xyPet'], (scope: any) => {
-    const remote = scope.remote.xyPet as PetRemote
-    scope.slots.inject('sidebar.footer.action', () => scope.slots.register({ name: 'sidebar.footer.action', id: 'xy-deepseek-pet', order: 20 }, (props: { wide: boolean }) => React.createElement(OpenPetAction, { wide: props.wide, remote })))
-  })
-  await Promise.all([settingsFiber, actionFiber, soundsFiber])
+  await Promise.all([settingsFiber, soundsFiber])
+  const disposeSettingsDeepLink = installSettingsDeepLink()
   return async () => {
+    disposeFileDrops()
+    disposeSettingsDeepLink()
     soundsRemote = undefined
     for (const listener of soundRemoteListeners) listener(undefined)
-    await Promise.all([settingsFiber.dispose(), actionFiber.dispose(), soundsFiber.dispose()])
+    await Promise.all([settingsFiber.dispose(), soundsFiber.dispose()])
     await unmountRemote()
     ;(globalThis as any)[presenceKey] = false
     globalThis.dispatchEvent?.(new Event(presenceEvent))

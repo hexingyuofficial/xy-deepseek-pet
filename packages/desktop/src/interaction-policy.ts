@@ -1,7 +1,7 @@
 import type { PetState } from '@xy-deepseek-pet/protocol'
 
 export function preservesActiveAnimation(state: PetState): boolean {
-  return state === 'thinking' || state === 'working'
+  return state === 'thinking' || state === 'working' || state === 'needsInput'
 }
 
 export function shouldDismissComposer(
@@ -9,4 +9,8 @@ export function shouldDismissComposer(
   targetInsideComposer: boolean,
 ): boolean {
   return targetSessionId !== undefined && !targetInsideComposer
+}
+
+export function shouldPausePointerChase(regionHovered: boolean, regionContainsFocus: boolean): boolean {
+  return regionHovered || regionContainsFocus
 }

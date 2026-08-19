@@ -58,6 +58,12 @@ import { basename as basename2, dirname as dirname2, extname, join as join4, res
 import { WebSocket, WebSocketServer } from "ws";
 
 // ../protocol/dist/index.js
+var PET_SETTINGS_QUERY = "xyPet";
+function petSettingsUrl(clientUrl) {
+  const url = new URL(clientUrl);
+  url.searchParams.set(PET_SETTINGS_QUERY, "settings");
+  return url.toString();
+}
 var MAX_STATUS_TEXT = 280;
 function boundedStatusText(value) {
   if (typeof value !== "string")
@@ -80,7 +86,14 @@ function reducePetEvent(previous, event) {
     case "bridge/disconnected":
       return { ...base, connected: false, state: "offline", text: "Harness disconnected" };
     case "agent/running":
-      return { ...base, connected: true, sessionId: event.sessionId, state: "thinking", text: "Thinking" };
+      return {
+        ...base,
+        connected: true,
+        sessionId: event.sessionId,
+        state: "thinking",
+        text: "Thinking",
+        ...event.turn !== void 0 ? { turn: event.turn } : {}
+      };
     case "agent/idle":
       return { ...baseWithoutText, connected: true, sessionId: event.sessionId, state: "idle" };
     case "step/working":
@@ -141,10 +154,26 @@ function isBridgeClientMessage(value) {
   }
   if (message.type === "acknowledge")
     return typeof message.sessionId === "string" && message.sessionId.length <= 256;
+  if (message.type === "approval-decision") {
+    return typeof message.requestId === "string" && message.requestId.length <= 128 && typeof message.sessionId === "string" && message.sessionId.length <= 256 && (message.outcome === "allowed-once" || message.outcome === "rejected");
+  }
+  if (message.type === "question-answer") {
+    return typeof message.requestId === "string" && message.requestId.length <= 128 && typeof message.sessionId === "string" && message.sessionId.length <= 256 && validQuestionAnswers(message.answers);
+  }
   if (message.type === "open-client") {
     return message.sessionId === void 0 || typeof message.sessionId === "string" && message.sessionId.length <= 256;
   }
+  if (message.type === "treasure-found")
+    return true;
   return message.type === "chat" && typeof message.requestId === "string" && message.requestId.length <= 128 && typeof message.text === "string" && message.text.trim().length > 0 && message.text.length <= 8e3 && (message.sessionId === void 0 || typeof message.sessionId === "string" && message.sessionId.length <= 256);
+}
+function validQuestionAnswers(value) {
+  return Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every((entry) => {
+    if (!entry || typeof entry !== "object")
+      return false;
+    const answer = entry;
+    return typeof answer.id === "string" && answer.id.length > 0 && answer.id.length <= 128 && Array.isArray(answer.selected) && answer.selected.length <= 12 && answer.selected.every((label) => typeof label === "string" && label.length > 0 && label.length <= 120) && (answer.custom === void 0 || typeof answer.custom === "string" && answer.custom.trim().length > 0 && answer.custom.length <= 2e3);
+  });
 }
 
 // src/gateway.ts
@@ -199,15 +228,26 @@ import { join as join2 } from "node:path";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-var PET_SCALE_MIN = 0.4;
+var PET_SCALE_MIN = 0.2;
 var PET_SCALE_MAX = 2;
 var PET_SCALE_STEP = 0.05;
 var PET_MENU_ACTIONS = ["open-client", "chat", "settings"];
+var DEFAULT_PET_STATS = { treasuresFound: 0 };
 var DEFAULT_PET_SETTINGS = {
   themeId: "whale-default",
   reducedMotion: false,
   bubbleVisible: true,
   walkingEnabled: true,
+  wanderFrequency: 70,
+  wanderDistance: 35,
+  mouseChaseEnabled: false,
+  mouseChaseSpeed: 40,
+  flingEnabled: true,
+  flingResistance: 45,
+  showOnFullScreen: true,
+  teleportShortcutEnabled: false,
+  teleportShortcut: "CommandOrControl+Shift+P",
+  teleportOpensRecentChat: false,
   scale: 1,
   activationGesture: "longPress",
   locale: "system",
@@ -220,14 +260,33 @@ function petRuntimeRoot() {
 function petSettingsPath() {
   return join(petRuntimeRoot(), "pet-settings.json");
 }
+function petStatsPath() {
+  return join(petRuntimeRoot(), "pet-stats.json");
+}
+function resolvePetStats(input = {}) {
+  return {
+    treasuresFound: typeof input.treasuresFound === "number" && Number.isSafeInteger(input.treasuresFound) && input.treasuresFound >= 0 ? input.treasuresFound : 0
+  };
+}
 function resolvePetSettings(input = {}) {
   const scale = typeof input.scale === "number" && Number.isFinite(input.scale) && input.scale >= PET_SCALE_MIN && input.scale <= PET_SCALE_MAX ? Math.round(input.scale / PET_SCALE_STEP) * PET_SCALE_STEP : DEFAULT_PET_SETTINGS.scale;
   const menuActions = Array.isArray(input.menuActions) ? [...new Set(input.menuActions.filter((value) => typeof value === "string" && /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(value) && value.length <= 96))] : [...DEFAULT_PET_SETTINGS.menuActions];
+  const movementLevel = (value, fallback) => typeof value === "number" && Number.isFinite(value) ? Math.round(Math.min(100, Math.max(0, value))) : fallback;
   return {
     themeId: typeof input.themeId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.themeId) ? input.themeId : DEFAULT_PET_SETTINGS.themeId,
     reducedMotion: input.reducedMotion === true,
     bubbleVisible: input.bubbleVisible !== false,
     walkingEnabled: input.walkingEnabled !== false,
+    wanderFrequency: movementLevel(input.wanderFrequency, DEFAULT_PET_SETTINGS.wanderFrequency),
+    wanderDistance: movementLevel(input.wanderDistance, DEFAULT_PET_SETTINGS.wanderDistance),
+    mouseChaseEnabled: input.mouseChaseEnabled === true,
+    mouseChaseSpeed: movementLevel(input.mouseChaseSpeed, DEFAULT_PET_SETTINGS.mouseChaseSpeed),
+    flingEnabled: input.flingEnabled !== false,
+    flingResistance: movementLevel(input.flingResistance, DEFAULT_PET_SETTINGS.flingResistance),
+    showOnFullScreen: input.showOnFullScreen !== false,
+    teleportShortcutEnabled: input.teleportShortcutEnabled === true,
+    teleportShortcut: typeof input.teleportShortcut === "string" && /^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/.test(input.teleportShortcut) ? input.teleportShortcut : DEFAULT_PET_SETTINGS.teleportShortcut,
+    teleportOpensRecentChat: input.teleportOpensRecentChat === true,
     scale,
     activationGesture: input.activationGesture === "doubleClick" || input.activationGesture === "longPress" ? input.activationGesture : DEFAULT_PET_SETTINGS.activationGesture,
     locale: "system",
@@ -242,7 +301,10 @@ var PetSettingsController = class {
     this.menuRegistry = menuRegistry;
   }
   current = structuredClone(DEFAULT_PET_SETTINGS);
+  stats = structuredClone(DEFAULT_PET_STATS);
   settingsPath = petSettingsPath();
+  statsPath = petStatsPath();
+  statsWrite = Promise.resolve();
   async initialize() {
     await mkdir(petRuntimeRoot(), { recursive: true, mode: 448 });
     try {
@@ -250,7 +312,13 @@ var PetSettingsController = class {
     } catch {
       this.current = structuredClone(DEFAULT_PET_SETTINGS);
     }
+    try {
+      this.stats = resolvePetStats(JSON.parse(await readFile(this.statsPath, "utf8")));
+    } catch {
+      this.stats = structuredClone(DEFAULT_PET_STATS);
+    }
     await this.persist();
+    await this.persistStats();
   }
   get config() {
     return structuredClone(this.current);
@@ -258,6 +326,7 @@ var PetSettingsController = class {
   async snapshot() {
     return {
       config: this.config,
+      stats: structuredClone(this.stats),
       themes: await this.listThemes(),
       menuExtensions: this.menuRegistry?.list() ?? []
     };
@@ -272,7 +341,12 @@ var PetSettingsController = class {
     if (!themes.some((theme) => theme.id === themeId)) throw new Error(`Unknown pet theme: ${themeId}`);
     this.current.themeId = themeId;
     await this.persist();
-    return { config: this.config, themes, menuExtensions: this.menuRegistry?.list() ?? [] };
+    return { config: this.config, stats: structuredClone(this.stats), themes, menuExtensions: this.menuRegistry?.list() ?? [] };
+  }
+  async recordTreasureFound() {
+    this.stats.treasuresFound += 1;
+    this.statsWrite = this.statsWrite.catch(() => void 0).then(() => this.persistStats());
+    await this.statsWrite;
   }
   async listThemes() {
     const roots = [
@@ -306,6 +380,12 @@ var PetSettingsController = class {
     await writeFile(staging, `${JSON.stringify(this.current, null, 2)}
 `, { mode: 384 });
     await rename(staging, this.settingsPath);
+  }
+  async persistStats() {
+    const staging = `${this.statsPath}.partial-${process.pid}`;
+    await writeFile(staging, `${JSON.stringify(this.stats, null, 2)}
+`, { mode: 384 });
+    await rename(staging, this.statsPath);
   }
 };
 function repositoryRootFromDesktopEntry(entry) {
@@ -4213,7 +4293,7 @@ function toolAbortedBeforeDispatchResult(prior) {
 // src/agent-capabilities.ts
 import { readFile as readFile2, stat } from "node:fs/promises";
 import { basename } from "node:path";
-var OPERATIONS = ["status", "open_pet", "open_settings", "set_theme", "import_theme", "set_scale", "create_launcher"];
+var OPERATIONS = ["status", "open_pet", "open_settings", "set_theme", "import_theme", "set_scale", "set_movement", "set_summon", "create_launcher"];
 function result(message, snapshot) {
   return {
     ok: true,
@@ -4228,7 +4308,7 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
   ctx.systemPrompt.section({
     name: "tool:xy-deepseek-pet",
     order: 145,
-    text: "XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 40%-200% scaling, Harness General settings, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, or change the pet/skin, or explicitly asks to create the desktop shortcut. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials."
+    text: "XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 20%-200% scaling, playful movement, a configurable global shortcut that summons the pet to the pointer, Harness General settings, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, change, summon, or tune the pet/skin, or explicitly asks to create the desktop shortcut. Movement levels are approximate 0-100 fun levels. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials."
   });
   ctx.tools.register(defineTool({
     name: "xy_pet",
@@ -4237,7 +4317,17 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
       operation: { type: "string", required: true, enum: OPERATIONS, description: OPERATIONS.join(" | ") },
       theme_id: { type: "string", description: "Exact installed theme ID for set_theme." },
       path: { type: "string", description: "Local .zip path supplied by the user or downloaded after the user explicitly requested a skin for import_theme." },
-      scale: { type: "number", description: "Pet scale from 0.4 through 2.0 for set_scale." },
+      scale: { type: "number", description: "Pet scale from 0.2 through 2.0 for set_scale." },
+      walking_enabled: { type: "boolean", description: "Enable or disable automatic wandering for set_movement." },
+      wander_frequency: { type: "number", description: "Approximate 0-100 level from occasional to frequent for set_movement." },
+      wander_distance: { type: "number", description: "Approximate 0-100 random movement distance level for set_movement." },
+      mouse_chase_enabled: { type: "boolean", description: "Enable or disable playful pointer chasing for set_movement." },
+      mouse_chase_speed: { type: "number", description: "Approximate 0-100 chase speed level for set_movement." },
+      fling_enabled: { type: "boolean", description: "Enable or disable throw inertia for set_movement." },
+      fling_resistance: { type: "number", description: "Approximate 0-100 throw resistance; higher values stop sooner." },
+      summon_enabled: { type: "boolean", description: "Enable or disable the global pet summon shortcut for set_summon." },
+      summon_shortcut: { type: "string", description: "Electron accelerator such as CommandOrControl+Shift+P for set_summon." },
+      summon_opens_chat: { type: "boolean", description: "Open the most recent reply panel after summoning for set_summon." },
       launcher_name: { type: "string", description: "Desktop shortcut display name for create_launcher; defaults to DeepSeek Harness." },
       launcher_icon: { type: "string", enum: ["calm", "custom"], description: "Bundled cartoon whale icon or custom PNG for create_launcher." }
     },
@@ -4273,8 +4363,8 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
         if (!runtime.openDesktop()) throw new Error("The desktop companion executable is unavailable");
         message = "XY DeepSeek Pet is open.";
       } else if (args.operation === "open_settings") {
-        runtime.openClient();
-        message = "Harness settings are open. The Pet group is under General settings.";
+        runtime.openSettings();
+        message = "Harness settings are open at the Desktop pet group.";
       } else if (args.operation === "set_theme") {
         if (!args.theme_id) throw new Error("theme_id is required for set_theme");
         await settings.activateTheme(args.theme_id);
@@ -4286,12 +4376,43 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
         message = `Pet theme ${themeId} was imported and activated.`;
       } else if (args.operation === "set_scale") {
         if (args.scale === void 0 || !Number.isFinite(args.scale) || args.scale < PET_SCALE_MIN || args.scale > PET_SCALE_MAX) {
-          throw new Error("scale must be between 0.4 and 2.0");
+          throw new Error("scale must be between 0.2 and 2.0");
         }
         const next = settings.config;
         next.scale = Math.round(args.scale / PET_SCALE_STEP) * PET_SCALE_STEP;
         await settings.update(next);
         message = `Pet scale changed to ${Math.round(next.scale * 100)}%.`;
+      } else if (args.operation === "set_movement") {
+        const levels = [args.wander_frequency, args.wander_distance, args.mouse_chase_speed, args.fling_resistance];
+        if (levels.some((value) => value !== void 0 && (!Number.isFinite(value) || value < 0 || value > 100))) {
+          throw new Error("movement levels must be between 0 and 100");
+        }
+        if (args.walking_enabled === void 0 && args.wander_frequency === void 0 && args.wander_distance === void 0 && args.mouse_chase_enabled === void 0 && args.mouse_chase_speed === void 0 && args.fling_enabled === void 0 && args.fling_resistance === void 0) {
+          throw new Error("set_movement requires at least one movement setting");
+        }
+        const next = settings.config;
+        if (args.walking_enabled !== void 0) next.walkingEnabled = args.walking_enabled;
+        if (args.wander_frequency !== void 0) next.wanderFrequency = Math.round(args.wander_frequency);
+        if (args.wander_distance !== void 0) next.wanderDistance = Math.round(args.wander_distance);
+        if (args.mouse_chase_enabled !== void 0) next.mouseChaseEnabled = args.mouse_chase_enabled;
+        if (args.mouse_chase_speed !== void 0) next.mouseChaseSpeed = Math.round(args.mouse_chase_speed);
+        if (args.fling_enabled !== void 0) next.flingEnabled = args.fling_enabled;
+        if (args.fling_resistance !== void 0) next.flingResistance = Math.round(args.fling_resistance);
+        await settings.update(next);
+        message = "Pet movement settings updated.";
+      } else if (args.operation === "set_summon") {
+        if (args.summon_enabled === void 0 && args.summon_shortcut === void 0 && args.summon_opens_chat === void 0) {
+          throw new Error("set_summon requires at least one summon setting");
+        }
+        if (args.summon_shortcut !== void 0 && !/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/.test(args.summon_shortcut)) {
+          throw new Error("summon_shortcut must be a valid accelerator such as CommandOrControl+Shift+P");
+        }
+        const next = settings.config;
+        if (args.summon_enabled !== void 0) next.teleportShortcutEnabled = args.summon_enabled;
+        if (args.summon_shortcut !== void 0) next.teleportShortcut = args.summon_shortcut;
+        if (args.summon_opens_chat !== void 0) next.teleportOpensRecentChat = args.summon_opens_chat;
+        await settings.update(next);
+        message = "Pet summon shortcut updated.";
       } else if (args.operation === "create_launcher") {
         const iconId = args.launcher_icon === "custom" ? "custom" : "calm";
         let fileName = "";
@@ -4303,7 +4424,7 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
           fileName = basename(args.path);
           dataBase64 = (await readFile2(args.path)).toString("base64");
         }
-        const created = runtime.createLauncher(args.launcher_name || "DeepSeek Harness", iconId, fileName, dataBase64);
+        const created = await runtime.createLauncher(args.launcher_name || "DeepSeek Harness", iconId, fileName, dataBase64);
         message = `${created.displayName} desktop shortcut was created for ${created.platform}.`;
       }
       return result(message, await settings.snapshot());
@@ -4313,7 +4434,7 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
 
 // src/desktop-launcher.ts
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join3 } from "node:path";
 function sanitizeLauncherName(value) {
@@ -4371,8 +4492,9 @@ function createMacLauncher(packageRoot, name2, icon) {
   const launchScript = join3(packageRoot, "runtime", "launch.mjs");
   if (!existsSync(launchScript)) throw new Error("The development launcher runtime is unavailable.");
   const target = join3(homedir2(), "Desktop", `${name2}.app`);
-  if (existsSync(target)) throw new Error(`\u201C${name2}\u201D already exists on the desktop.`);
-  const contents = join3(target, "Contents");
+  const replacementId = `${process.pid}-${Date.now()}`;
+  const staging = join3(homedir2(), "Desktop", `.${name2}.${replacementId}.app`);
+  const contents = join3(staging, "Contents");
   const macos = join3(contents, "MacOS");
   const resources = join3(contents, "Resources");
   const iconset = join3(resources, "Pet.iconset");
@@ -4392,8 +4514,19 @@ function createMacLauncher(packageRoot, name2, icon) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>CFBundleName</key><string>${xml(name2)}</string><key>CFBundleDisplayName</key><string>${xml(name2)}</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIconFile</key><string>Pet</string><key>CFBundleIdentifier</key><string>dev.xy-deepseek-pet.launcher</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>
 `);
+    if (existsSync(target)) {
+      const targetContents = join3(target, "Contents");
+      mkdirSync(join3(targetContents, "MacOS"), { recursive: true });
+      mkdirSync(join3(targetContents, "Resources"), { recursive: true });
+      writeFileSync(join3(targetContents, "MacOS", "launch"), readFileSync(join3(contents, "MacOS", "launch")), { mode: 493 });
+      writeFileSync(join3(targetContents, "Resources", "Pet.icns"), readFileSync(join3(contents, "Resources", "Pet.icns")));
+      writeFileSync(join3(targetContents, "Info.plist"), readFileSync(join3(contents, "Info.plist")));
+      rmSync(staging, { recursive: true, force: true });
+    } else {
+      renameSync(staging, target);
+    }
   } catch (error) {
-    rmSync(target, { recursive: true, force: true });
+    rmSync(staging, { recursive: true, force: true });
     throw error;
   }
 }
@@ -4412,7 +4545,7 @@ function createWindowsLauncher(packageRoot, name2, icon) {
   const launchScript = join3(packageRoot, "runtime", "launch.mjs");
   if (!existsSync(launchScript)) throw new Error("The development launcher runtime is unavailable.");
   const shortcut = join3(homedir2(), "Desktop", `${name2}.lnk`);
-  if (existsSync(shortcut)) throw new Error(`\u201C${name2}\u201D already exists on the desktop.`);
+  rmSync(shortcut, { force: true });
   const iconRoot = join3(homedir2(), ".xy-deepseek-pet", "launcher-icons");
   mkdirSync(iconRoot, { recursive: true, mode: 448 });
   const ico = join3(iconRoot, `${name2}.ico`);
@@ -4448,9 +4581,62 @@ function createDesktopLauncher(request) {
 
 // src/index.ts
 var name = "xy-deepseek-pet";
-var inject = ["agents", "commands", "systemPrompt", "tools"];
+var inject = ["agents", "apiProxy", "approval", "commands", "systemPrompt", "tools"];
 var MAX_WIRE_BYTES = 64 * 1024;
 var REACTION_MS = 2800;
+var COMPLETION_SETTLE_MS = 500;
+var MAX_SESSION_ACTIVITIES = 16;
+var MAX_ACTIVITY_TEXT = 8e3;
+function boundedActivityText(value) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, MAX_ACTIVITY_TEXT) : void 0;
+}
+function boundedVisibleString(value, maxLength) {
+  if (typeof value !== "string") return void 0;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return void 0;
+  return normalized.slice(0, maxLength);
+}
+function sanitizeQuestions(value) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8) return void 0;
+  const ids = /* @__PURE__ */ new Set();
+  const questions = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") return void 0;
+    const input = entry;
+    const id = boundedVisibleString(input.id, 128);
+    const question = boundedVisibleString(input.question, 600);
+    if (!id || !question || ids.has(id)) return void 0;
+    ids.add(id);
+    let options;
+    if (input.options !== void 0) {
+      if (!Array.isArray(input.options) || input.options.length > 12) return void 0;
+      const labels = /* @__PURE__ */ new Set();
+      options = [];
+      for (const entry2 of input.options) {
+        if (!entry2 || typeof entry2 !== "object") return void 0;
+        const option = entry2;
+        const label = boundedVisibleString(option.label, 120);
+        if (!label || labels.has(label)) return void 0;
+        labels.add(label);
+        const description = boundedVisibleString(option.description, 500);
+        options.push({ label, ...description ? { description } : {} });
+      }
+    }
+    const header = boundedVisibleString(input.header, 80);
+    const detail = boundedVisibleString(input.detail, 4e3);
+    questions.push({
+      id,
+      question,
+      ...header ? { header } : {},
+      ...detail ? { detail } : {},
+      ...options !== void 0 ? { options } : {},
+      ...typeof input.multiSelect === "boolean" ? { multiSelect: input.multiSelect } : {}
+    });
+  }
+  return questions;
+}
 var require2 = createRequire(import.meta.url);
 function installedDesktop() {
   try {
@@ -4480,7 +4666,7 @@ function processAlive(pid) {
 function visibleAssistantText(event) {
   if (event.type !== "assistant/message") return void 0;
   const text = event.data.message.content.filter((block) => block.type === "text").map((block) => block.text).join(" ").trim();
-  return boundedStatusText(text);
+  return boundedActivityText(text);
 }
 function visibleAssistantChunk(event) {
   if (event.type !== "assistant/chunk" || event.data.chunk.type !== "text-delta") return void 0;
@@ -4515,6 +4701,14 @@ function visibleSessionTitle(event) {
   const title = candidate.data.title.replace(/\s+/g, " ").trim();
   return title ? title.slice(0, 120) : void 0;
 }
+function latestVisibleSessionTitle(session) {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    const event = session.events[index];
+    const title = visibleSessionTitle(event);
+    if (title) return { title, updatedAt: event.time };
+  }
+  return void 0;
+}
 function desktopLaunch(config) {
   const configuredCommand = config.desktopCommand ?? process.env.XY_DEEPSEEK_PET_DESKTOP_COMMAND;
   const configuredEntry = config.desktopEntry ?? process.env.XY_DEEPSEEK_PET_DESKTOP_ENTRY;
@@ -4547,9 +4741,17 @@ var HarnessPetRuntime = class {
   snapshot = initialSnapshot();
   sessions = /* @__PURE__ */ new Map();
   lastAssistantText = /* @__PURE__ */ new Map();
+  assistantStreams = /* @__PURE__ */ new Map();
   activeToolCalls = /* @__PURE__ */ new Map();
   pendingQuestionCalls = /* @__PURE__ */ new Map();
   pendingApprovals = /* @__PURE__ */ new Map();
+  pendingApprovalAnswers = /* @__PURE__ */ new Map();
+  pendingQuestionAnswers = /* @__PURE__ */ new Map();
+  sessionActivities = /* @__PURE__ */ new Map();
+  pendingCompletions = /* @__PURE__ */ new Map();
+  activitySequence = 0;
+  apiEventsAbort;
+  apiEventsTask;
   sequence = 0;
   reactionTimer;
   stopped = false;
@@ -4558,6 +4760,7 @@ var HarnessPetRuntime = class {
   async start() {
     if (this.server || this.stopped) return;
     this.selectLatest();
+    for (const agent of this.ctx.agents.roots()) this.restoreSessionTitle(agent);
     this.server = new WebSocketServer({ host: "127.0.0.1", port: 0, maxPayload: MAX_WIRE_BYTES });
     this.server.on("connection", (socket) => this.accept(socket));
     await new Promise((resolveReady, reject) => {
@@ -4565,6 +4768,7 @@ var HarnessPetRuntime = class {
       this.server?.once("error", reject);
     });
     this.snapshot = reducePetEvent(this.snapshot, { type: "bridge/connected" });
+    this.startApiEventMirror();
     await this.writeRendezvous();
     if (this.config.autoLaunch === true || this.settings?.config.autoLaunch === true) this.openDesktop();
     this.logger.info("local desktop bridge ready");
@@ -4572,11 +4776,21 @@ var HarnessPetRuntime = class {
   async stop() {
     this.stopped = true;
     if (this.reactionTimer) clearTimeout(this.reactionTimer);
+    for (const pending of this.pendingCompletions.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
+    }
+    this.pendingCompletions.clear();
     for (const pending of this.pendingThemeImports.values()) {
       clearTimeout(pending.timeout);
       pending.reject(new Error("Pet runtime stopped"));
     }
     this.pendingThemeImports.clear();
+    this.apiEventsAbort?.abort();
+    this.apiEventsAbort = void 0;
+    await this.apiEventsTask;
+    this.apiEventsTask = void 0;
+    this.pendingApprovalAnswers.clear();
+    this.pendingQuestionAnswers.clear();
     this.desktop?.kill();
     this.desktop = void 0;
     const server = this.server;
@@ -4599,13 +4813,24 @@ var HarnessPetRuntime = class {
     const address = this.server.address();
     if (!address || typeof address === "string") return false;
     const child = spawn(launch.command, launch.args, {
-      stdio: ["pipe", "ignore", "ignore"],
+      stdio: ["pipe", "ignore", "pipe"],
       env: { ...process.env, XY_DEEPSEEK_PET_CHILD: "1" }
+    });
+    let stderr = "";
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk) => {
+      stderr = `${stderr}${chunk}`.slice(-4096);
     });
     child.stdin?.end(`${JSON.stringify({ port: address.port, token: this.token })}
 `);
-    child.once("exit", () => {
+    child.once("exit", (code, signal) => {
       if (this.desktop === child) this.desktop = void 0;
+      if (code && code !== 0) {
+        const detail = stderr.replace(/\s+/g, " ").trim().slice(-1e3);
+        this.logger.warn(`desktop exited with code ${code}${detail ? `: ${detail}` : ""}`);
+      } else if (signal && !child.killed) {
+        this.logger.warn(`desktop exited after signal ${signal}`);
+      }
     });
     child.once("error", (error) => this.logger.warn(`desktop launch failed: ${String(error)}`));
     this.desktop = child;
@@ -4664,9 +4889,18 @@ var HarnessPetRuntime = class {
       this.send(socket, { type: "theme-import", requestId, path: archivePath });
     });
   }
-  createLauncher(name2, iconId, fileName, dataBase64) {
+  async createLauncher(name2, iconId, fileName, dataBase64) {
     const packageRoot = resolve3(import.meta.dirname, "..");
-    return createDesktopLauncher({ packageRoot, name: name2, iconId, fileName, dataBase64 });
+    const reopenDesktop = process.platform === "darwin" && this.desktopStatus();
+    try {
+      if (reopenDesktop) {
+        this.closeDesktop();
+        await this.waitForDesktopClosed(5e3);
+      }
+      return createDesktopLauncher({ packageRoot, name: name2, iconId, fileName, dataBase64 });
+    } finally {
+      if (reopenDesktop) this.openDesktop();
+    }
   }
   async importThemeArchive(path, signal) {
     const archivePath = resolve3(path);
@@ -4681,14 +4915,21 @@ var HarnessPetRuntime = class {
   onAgentCreated(agent) {
     this.touch(agent);
     this.selectLatest();
+    this.restoreSessionTitle(agent);
   }
   onAgentDisposed(agent) {
+    const sessionId = String(agent.id);
+    this.cancelPendingCompletion(sessionId);
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId);
+    this.clearQuestionAnswers((pending) => pending.sessionId === sessionId);
     this.touched.delete(String(agent.id));
     this.sessions.delete(String(agent.id));
     this.lastAssistantText.delete(String(agent.id));
+    this.assistantStreams.delete(String(agent.id));
     this.activeToolCalls.delete(String(agent.id));
     this.pendingQuestionCalls.delete(String(agent.id));
     this.pendingApprovals.delete(String(agent.id));
+    this.sessionActivities.delete(String(agent.id));
     if (this.selected === agent) this.selectLatest();
     this.publishAggregate();
   }
@@ -4697,10 +4938,14 @@ var HarnessPetRuntime = class {
     this.touch(agent);
     this.selected = agent;
     if (status === "running") {
+      this.cancelPendingCompletion(String(agent.id));
       this.cancelReaction();
-      this.lastAssistantText.delete(String(agent.id));
-      this.updateSession(String(agent.id), { state: "thinking", unread: false, text: "Thinking" });
-      this.publish({ type: "agent/running", sessionId: String(agent.id) });
+      return;
+    }
+    const pendingCompletion = this.pendingCompletions.get(String(agent.id));
+    if (pendingCompletion) {
+      pendingCompletion.idleObserved = true;
+      if (!pendingCompletion.timer) this.confirmCompletion(String(agent.id));
       return;
     }
     const summary = this.sessions.get(String(agent.id));
@@ -4720,6 +4965,10 @@ var HarnessPetRuntime = class {
       this.publishAggregate();
       return;
     }
+    if (!this.sessions.get(sessionId)?.title) {
+      const historicalTitle = latestVisibleSessionTitle(session);
+      if (historicalTitle) this.updateSession(sessionId, historicalTitle);
+    }
     const approval = approvalAuditEvent(event);
     if (approval?.type === "approval/asked") {
       const approvals = this.pendingApprovals.get(sessionId) ?? /* @__PURE__ */ new Map();
@@ -4730,21 +4979,29 @@ var HarnessPetRuntime = class {
     }
     if (approval?.type === "approval/decided") {
       this.pendingApprovals.get(sessionId)?.delete(approval.data.id);
+      this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === approval.data.id);
       this.publishCurrentActivity(sessionId, approval.time);
       return;
     }
     switch (event.type) {
       case "turn/start":
+        this.cancelPendingCompletion(sessionId);
         this.cancelReaction();
         this.lastAssistantText.delete(sessionId);
+        this.assistantStreams.delete(sessionId);
         this.activeToolCalls.delete(sessionId);
         this.pendingQuestionCalls.delete(sessionId);
         this.pendingApprovals.delete(sessionId);
-        this.updateSession(sessionId, { state: "thinking", unread: false, text: "Thinking" });
-        this.publish({ type: "agent/running", sessionId, time: event.time });
+        this.clearQuestionAnswers((pending) => pending.sessionId === sessionId);
+        if (!this.isContinuingRound(sessionId)) this.sessionActivities.set(sessionId, []);
+        this.appendActivity(sessionId, "thinking", "Thinking", event.time);
+        this.updateSession(sessionId, { state: "thinking", unread: false, text: "Thinking", turn: event.data.turn, approval: void 0, question: void 0 });
+        this.publish({ type: "agent/running", sessionId, turn: event.data.turn, time: event.time });
         break;
       case "tool/call":
         {
+          this.cancelPendingCompletion(sessionId);
+          this.assistantStreams.delete(sessionId);
           const callId = String(event.data.callId);
           const toolName = safeToolName(event.data.name);
           if (toolName === "ask_user_question" || toolName === "request_user_input") {
@@ -4758,11 +5015,13 @@ var HarnessPetRuntime = class {
           tools.set(callId, toolName);
           this.activeToolCalls.set(sessionId, tools);
           const text = boundedStatusText(`Using ${toolName}`) ?? "Working";
-          this.updateSession(sessionId, { state: "working", text });
+          this.appendActivity(sessionId, "tool", text, event.time, `tool:${callId}`);
+          this.updateSession(sessionId, { state: "working", text, turn: event.data.turn });
           this.publish({ type: "step/working", sessionId, text, time: event.time });
         }
         break;
       case "tool/result": {
+        this.cancelPendingCompletion(sessionId);
         const callId = toolResultCallId(event);
         if (callId) {
           this.activeToolCalls.get(sessionId)?.delete(callId);
@@ -4772,40 +5031,51 @@ var HarnessPetRuntime = class {
         break;
       }
       case "assistant/chunk": {
+        this.cancelPendingCompletion(sessionId);
         const delta = visibleAssistantChunk(event);
         if (!delta) break;
-        const text = boundedStatusText(`${this.lastAssistantText.get(sessionId) ?? ""}${delta}`);
-        if (!text) break;
+        const stream = `${this.assistantStreams.get(sessionId) ?? ""}${delta}`.slice(0, MAX_ACTIVITY_TEXT);
+        this.assistantStreams.set(sessionId, stream);
+        const activityText = boundedActivityText(stream);
+        const text = boundedStatusText(stream);
+        if (!text || !activityText) break;
         this.lastAssistantText.set(sessionId, text);
+        this.upsertAssistantActivity(sessionId, activityText, event.time);
         this.updateSession(sessionId, { text });
         this.publish({ type: "assistant/text", sessionId, text, time: event.time });
         break;
       }
       case "assistant/message": {
-        const text = visibleAssistantText(event);
-        if (text) {
+        this.cancelPendingCompletion(sessionId);
+        const activityText = visibleAssistantText(event);
+        const text = boundedStatusText(activityText);
+        if (text && activityText) {
           this.lastAssistantText.set(sessionId, text);
+          this.upsertAssistantActivity(sessionId, activityText, event.time);
           this.updateSession(sessionId, { text });
           this.publish({ type: "assistant/text", sessionId, text, time: event.time });
         }
         break;
       }
       case "turn/end":
-        this.activeToolCalls.delete(sessionId);
-        this.pendingQuestionCalls.delete(sessionId);
-        this.pendingApprovals.delete(sessionId);
         if (event.data.reason.kind === "completed") {
+          if (this.hasPendingContinuation(sessionId)) {
+            this.publishCurrentActivity(sessionId, event.time);
+            break;
+          }
           const text = this.lastAssistantText.get(sessionId) ?? "Done";
-          this.updateSession(sessionId, { state: "complete", unread: true, text });
-          this.publish({ type: "turn/complete", sessionId, text, time: event.time });
-          this.scheduleIdle(agent);
+          this.queueCompletion(agent, text, event.time);
         } else if (event.data.reason.kind === "blocked") {
+          this.appendActivity(sessionId, "needsInput", "Needs your input", event.time);
           this.updateSession(sessionId, { state: "needsInput", unread: true, text: "Needs your input" });
           this.publish({ type: "agent/needs-input", sessionId, text: "Needs your input", time: event.time });
         } else if (event.data.reason.kind === "error") {
+          this.clearSessionContinuation(sessionId);
+          this.appendActivity(sessionId, "error", "Something went wrong", event.time);
           this.updateSession(sessionId, { state: "error", unread: true, text: "Something went wrong" });
           this.publish({ type: "agent/error", sessionId, text: "Something went wrong", time: event.time });
         } else {
+          this.clearSessionContinuation(sessionId);
           this.updateSession(sessionId, { state: "idle", unread: false, text: void 0 });
           this.publishAggregate();
         }
@@ -4813,15 +5083,25 @@ var HarnessPetRuntime = class {
     }
   }
   publishAttentionState(sessionId, time) {
-    const approval = [...this.pendingApprovals.get(sessionId)?.values() ?? []].at(-1);
-    const text = approval ? `Approval required: ${approval}` : "Waiting for your answer";
-    this.updateSession(sessionId, { state: "needsInput", unread: true, text });
+    const answer = [...this.pendingApprovalAnswers.values()].reverse().find((pending) => pending.sessionId === sessionId);
+    const approval = answer?.toolName ?? [...this.pendingApprovals.get(sessionId)?.values() ?? []].at(-1);
+    const pendingQuestion = [...this.pendingQuestionAnswers.values()].reverse().find((pending) => pending.sessionId === sessionId);
+    const text = approval ? `Approval required: ${approval}` : pendingQuestion ? "Choice required" : "Waiting for your answer";
+    this.appendActivity(sessionId, "needsInput", text, time);
+    this.updateSession(sessionId, {
+      state: "needsInput",
+      unread: true,
+      text,
+      approval: answer ? { requestId: answer.requestId, toolName: answer.toolName } : void 0,
+      question: !approval && pendingQuestion ? { requestId: pendingQuestion.requestId, questions: pendingQuestion.questions } : void 0
+    });
     this.publish({ type: "agent/needs-input", sessionId, text, time });
   }
   publishCurrentActivity(sessionId, time) {
     const hasQuestions = Boolean(this.pendingQuestionCalls.get(sessionId)?.size);
     const hasApprovals = Boolean(this.pendingApprovals.get(sessionId)?.size);
-    if (hasQuestions || hasApprovals) return this.publishAttentionState(sessionId, time);
+    const hasQuestionAnswer = [...this.pendingQuestionAnswers.values()].some((pending) => pending.sessionId === sessionId);
+    if (hasQuestions || hasApprovals || hasQuestionAnswer) return this.publishAttentionState(sessionId, time);
     const activeTool = [...this.activeToolCalls.get(sessionId)?.values() ?? []].at(-1);
     if (activeTool) {
       const text = boundedStatusText(`Using ${activeTool}`) ?? "Working";
@@ -4829,8 +5109,155 @@ var HarnessPetRuntime = class {
       this.publish({ type: "step/working", sessionId, text, time });
       return;
     }
-    this.updateSession(sessionId, { state: "thinking", unread: false, text: "Thinking" });
-    this.publish({ type: "agent/running", sessionId, time });
+    const turn = this.sessions.get(sessionId)?.turn;
+    this.appendActivity(sessionId, "thinking", "Thinking", time);
+    this.updateSession(sessionId, { state: "thinking", unread: false, text: "Thinking", approval: void 0, question: void 0 });
+    this.publish({ type: "agent/running", sessionId, ...turn !== void 0 ? { turn } : {}, time });
+  }
+  startApiEventMirror() {
+    const apiProxy = this.ctx.apiProxy;
+    if (!apiProxy || this.apiEventsTask) return;
+    const controller = new AbortController();
+    this.apiEventsAbort = controller;
+    this.apiEventsTask = this.consumeApiEvents(apiProxy, controller.signal);
+  }
+  async consumeApiEvents(apiProxy, signal) {
+    try {
+      const request = { rpcId: randomUUID(), payload: {} };
+      for await (const frame of apiProxy.events.mux(request, signal)) this.onApiFrame(frame);
+    } catch {
+      if (!signal.aborted && !this.stopped) this.logger.warn("official Harness interaction mirror stopped");
+    }
+  }
+  onApiFrame(frame) {
+    const payload = frame.payload;
+    if (payload.type === "approval/requested") {
+      if (typeof payload.sessionId !== "string" || typeof payload.approvalId !== "string") return;
+      const sessionId = payload.sessionId;
+      const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId);
+      if (!agent || !this.isRoot(agent)) return;
+      const requestId = String(frame.rpcId);
+      this.pendingApprovalAnswers.set(requestId, {
+        requestId,
+        sessionId,
+        approvalId: payload.approvalId,
+        rpcId: frame.rpcId,
+        toolName: safeToolName(payload.toolName)
+      });
+      const approvals = this.pendingApprovals.get(sessionId) ?? /* @__PURE__ */ new Map();
+      approvals.set(String(payload.approvalId), safeToolName(payload.toolName));
+      this.pendingApprovals.set(sessionId, approvals);
+      this.publishAttentionState(sessionId, Date.now());
+      return;
+    }
+    if (payload.type === "approval/resolved") {
+      if (typeof payload.sessionId !== "string" || typeof payload.approvalId !== "string") return;
+      const sessionId = payload.sessionId;
+      this.pendingApprovals.get(sessionId)?.delete(payload.approvalId);
+      this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === payload.approvalId);
+      this.publishCurrentActivity(sessionId, Date.now());
+      return;
+    }
+    if (payload.type === "question/requested") {
+      if (typeof payload.sessionId !== "string") return;
+      const questions = sanitizeQuestions(payload.questions);
+      if (!questions) return;
+      const sessionId = payload.sessionId;
+      const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId);
+      if (!agent || !this.isRoot(agent)) return;
+      const requestId = String(frame.rpcId);
+      this.pendingQuestionAnswers.set(requestId, { requestId, sessionId, rpcId: frame.rpcId, questions });
+      this.publishAttentionState(sessionId, Date.now());
+      return;
+    }
+    if (payload.type === "question/resolved") {
+      if (typeof payload.sessionId !== "string" || typeof payload.questionRpcId !== "string") return;
+      const sessionId = payload.sessionId;
+      this.clearQuestionAnswers((pending) => pending.sessionId === sessionId && pending.rpcId === payload.questionRpcId);
+      this.pendingQuestionCalls.delete(sessionId);
+      this.publishCurrentActivity(sessionId, Date.now());
+    }
+  }
+  async answerQuestion(socket, message) {
+    const pending = this.pendingQuestionAnswers.get(message.requestId);
+    if (!pending || this.authenticatedDesktop() !== socket || pending.sessionId !== message.sessionId || !this.validQuestionAnswers(pending.questions, message.answers)) {
+      this.send(socket, { type: "question-result", requestId: message.requestId, ok: false, error: "Question is no longer available or the answer is invalid." });
+      return;
+    }
+    try {
+      const apiProxy = this.ctx.apiProxy;
+      if (!apiProxy) throw new Error("official API Proxy is unavailable");
+      const answers = message.answers.map((answer) => ({
+        id: answer.id,
+        selected: [...answer.selected],
+        ...answer.custom ? { custom: answer.custom.trim() } : {}
+      }));
+      const receipt = await apiProxy.respond({
+        type: "client-response",
+        rpcId: pending.rpcId,
+        result: { ok: true, value: { sessionId: pending.sessionId, answer: { answers } } }
+      });
+      if (!receipt.accepted) throw new Error("not pending");
+      this.clearQuestionAnswers((entry) => entry.requestId === pending.requestId);
+      this.pendingQuestionCalls.delete(pending.sessionId);
+      this.publishCurrentActivity(pending.sessionId, Date.now());
+      this.send(socket, { type: "question-result", requestId: message.requestId, ok: true });
+    } catch {
+      this.send(socket, { type: "question-result", requestId: message.requestId, ok: false, error: "Question is no longer available." });
+    }
+  }
+  validQuestionAnswers(questions, answers) {
+    if (answers.length !== questions.length) return false;
+    return questions.every((question, index) => {
+      const answer = answers[index];
+      if (!answer || answer.id !== question.id || new Set(answer.selected).size !== answer.selected.length) return false;
+      const labels = new Set((question.options ?? []).map((option) => option.label));
+      if (answer.selected.some((label) => !labels.has(label))) return false;
+      const custom = answer.custom?.trim();
+      if (!question.multiSelect && answer.selected.length > 1) return false;
+      if (!question.multiSelect && answer.selected.length > 0 && custom) return false;
+      return answer.selected.length > 0 || Boolean(custom);
+    });
+  }
+  async decideApproval(socket, message) {
+    const pending = this.pendingApprovalAnswers.get(message.requestId);
+    if (!pending || this.authenticatedDesktop() !== socket || pending.sessionId !== message.sessionId) {
+      this.send(socket, { type: "approval-result", requestId: message.requestId, ok: false, error: "Approval request is no longer available." });
+      return;
+    }
+    try {
+      const apiProxy = this.ctx.apiProxy;
+      if (!apiProxy) throw new Error("official API Proxy is unavailable");
+      const receipt = await apiProxy.respond({
+        type: "client-response",
+        rpcId: pending.rpcId,
+        result: {
+          ok: true,
+          value: {
+            sessionId: pending.sessionId,
+            approvalId: pending.approvalId,
+            outcome: message.outcome
+          }
+        }
+      });
+      if (!receipt.accepted) throw new Error("not pending");
+      this.clearApprovalAnswers((entry) => entry.requestId === pending.requestId);
+      this.pendingApprovals.get(pending.sessionId)?.delete(String(pending.approvalId));
+      this.publishCurrentActivity(pending.sessionId, Date.now());
+      this.send(socket, { type: "approval-result", requestId: message.requestId, ok: true });
+    } catch {
+      this.send(socket, { type: "approval-result", requestId: message.requestId, ok: false, error: "Approval request is no longer available." });
+    }
+  }
+  clearApprovalAnswers(predicate) {
+    for (const pending of [...this.pendingApprovalAnswers.values()]) {
+      if (predicate(pending)) this.pendingApprovalAnswers.delete(pending.requestId);
+    }
+  }
+  clearQuestionAnswers(predicate) {
+    for (const pending of [...this.pendingQuestionAnswers.values()]) {
+      if (predicate(pending)) this.pendingQuestionAnswers.delete(pending.requestId);
+    }
   }
   onAgentError(agent) {
     if (agent !== this.selected && !this.isRoot(agent)) return;
@@ -4858,13 +5285,20 @@ var HarnessPetRuntime = class {
         return;
       }
       if (value.type === "chat") this.submitChat(socket, value.requestId, value.text, value.sessionId);
+      if (value.type === "approval-decision") void this.decideApproval(socket, value);
+      if (value.type === "question-answer") void this.answerQuestion(socket, value);
       if (value.type === "focus") this.openDesktop();
       if (value.type === "acknowledge") this.acknowledge(value.sessionId);
       if (value.type === "open-client") this.openClient(value.sessionId);
+      if (value.type === "treasure-found") {
+        void this.settings?.recordTreasureFound().catch(() => this.logger.warn("could not persist treasure count"));
+      }
       if (value.type === "shutdown-service") this.shutdownOwnedService();
       if (value.type === "theme-import-result") this.resolveThemeImport(value);
     });
-    socket.once("close", () => clearTimeout(authTimer));
+    socket.once("close", () => {
+      clearTimeout(authTimer);
+    });
   }
   submitChat(socket, requestId, text, sessionId) {
     const agent = sessionId ? this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId) : this.selectLatest();
@@ -4885,15 +5319,30 @@ var HarnessPetRuntime = class {
     }
   }
   publish(event) {
-    this.snapshot = { ...reducePetEvent(this.snapshot, event), sessions: this.sortedSessions() };
+    const reduced = reducePetEvent(this.snapshot, event);
+    if ("sessionId" in event) {
+      const { turn: _staleTurn, ...withoutTurn } = reduced;
+      const turn = this.sessions.get(event.sessionId)?.turn;
+      this.snapshot = {
+        ...withoutTurn,
+        ...turn !== void 0 ? { turn } : {},
+        sessions: this.sortedSessions()
+      };
+    } else {
+      this.snapshot = { ...reduced, sessions: this.sortedSessions() };
+    }
     this.broadcast();
   }
   publishAggregate() {
     const summaries = this.sortedSessions();
     const active = summaries.find((entry) => entry.state === "needsInput") ?? summaries.find((entry) => entry.state === "error" && entry.unread) ?? summaries.find((entry) => entry.state === "working") ?? summaries.find((entry) => entry.state === "thinking");
     const nextState = active?.state ?? "idle";
-    const { sessionId: _sessionId, text: _text, ...snapshotBase } = this.snapshot;
-    const activeFields = active ? { sessionId: active.id, ...active.text ? { text: active.text } : {} } : {};
+    const { sessionId: _sessionId, text: _text, turn: _turn, ...snapshotBase } = this.snapshot;
+    const activeFields = active ? {
+      sessionId: active.id,
+      ...active.text ? { text: active.text } : {},
+      ...active.turn !== void 0 ? { turn: active.turn } : {}
+    } : {};
     this.snapshot = {
       ...snapshotBase,
       state: nextState,
@@ -4919,12 +5368,88 @@ var HarnessPetRuntime = class {
       state: patch.state ?? previous?.state ?? "idle",
       unread: patch.unread ?? previous?.unread ?? false,
       updatedAt: patch.updatedAt ?? Date.now(),
-      ...patch.text !== void 0 ? { text: patch.text } : previous?.text ? { text: previous.text } : {}
+      ...patch.text !== void 0 ? { text: patch.text } : previous?.text ? { text: previous.text } : {},
+      ...patch.turn !== void 0 ? { turn: patch.turn } : previous?.turn !== void 0 ? { turn: previous.turn } : {},
+      ...this.sessionActivities.get(id)?.length ? { activities: [...this.sessionActivities.get(id)] } : {},
+      ...patch.approval !== void 0 ? { approval: patch.approval } : previous?.approval ? { approval: previous.approval } : {},
+      ...patch.question !== void 0 ? { question: patch.question } : previous?.question ? { question: previous.question } : {}
     });
     if (patch.text === void 0 && Object.prototype.hasOwnProperty.call(patch, "text")) {
       const current = this.sessions.get(id);
       delete current.text;
     }
+    if (patch.approval === void 0 && Object.prototype.hasOwnProperty.call(patch, "approval")) {
+      const current = this.sessions.get(id);
+      delete current.approval;
+    }
+    if (patch.question === void 0 && Object.prototype.hasOwnProperty.call(patch, "question")) {
+      const current = this.sessions.get(id);
+      delete current.question;
+    }
+  }
+  appendActivity(sessionId, kind, text, time, id = `${kind}:${++this.activitySequence}`) {
+    const bounded = boundedActivityText(text);
+    if (!bounded) return;
+    const activities = this.sessionActivities.get(sessionId) ?? [];
+    const previous = activities.at(-1);
+    if (previous?.kind === kind && previous.text === bounded && kind !== "tool") return;
+    const next = [...activities.filter((activity) => activity.id !== id), { id, kind, text: bounded, time }].slice(-MAX_SESSION_ACTIVITIES);
+    this.sessionActivities.set(sessionId, next);
+  }
+  isContinuingRound(sessionId) {
+    const state = this.sessions.get(sessionId)?.state;
+    return state === "thinking" || state === "working" || state === "needsInput";
+  }
+  hasPendingContinuation(sessionId) {
+    return Boolean(this.activeToolCalls.get(sessionId)?.size) || Boolean(this.pendingQuestionCalls.get(sessionId)?.size) || Boolean(this.pendingApprovals.get(sessionId)?.size) || [...this.pendingApprovalAnswers.values()].some((entry) => entry.sessionId === sessionId) || [...this.pendingQuestionAnswers.values()].some((entry) => entry.sessionId === sessionId);
+  }
+  clearSessionContinuation(sessionId) {
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId);
+    this.clearQuestionAnswers((pending) => pending.sessionId === sessionId);
+    this.activeToolCalls.delete(sessionId);
+    this.pendingQuestionCalls.delete(sessionId);
+    this.pendingApprovals.delete(sessionId);
+    this.updateSession(sessionId, { approval: void 0, question: void 0 });
+  }
+  queueCompletion(agent, text, time) {
+    const sessionId = String(agent.id);
+    this.cancelPendingCompletion(sessionId);
+    const pending = {
+      agent,
+      text,
+      time,
+      idleObserved: agent.status === "idle",
+      timer: void 0
+    };
+    pending.timer = setTimeout(() => this.confirmCompletion(sessionId), COMPLETION_SETTLE_MS);
+    this.pendingCompletions.set(sessionId, pending);
+  }
+  confirmCompletion(sessionId) {
+    const pending = this.pendingCompletions.get(sessionId);
+    if (!pending) return;
+    pending.timer = void 0;
+    if (this.stopped) {
+      this.pendingCompletions.delete(sessionId);
+      return;
+    }
+    if (!pending.idleObserved && pending.agent.status !== "idle") return;
+    this.pendingCompletions.delete(sessionId);
+    if (this.hasPendingContinuation(sessionId)) return;
+    this.appendActivity(sessionId, "complete", "Done", pending.time);
+    this.updateSession(sessionId, { state: "complete", unread: true, text: pending.text });
+    this.publish({ type: "turn/complete", sessionId, text: pending.text, time: pending.time });
+    this.scheduleIdle(pending.agent);
+  }
+  cancelPendingCompletion(sessionId) {
+    const pending = this.pendingCompletions.get(sessionId);
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    this.pendingCompletions.delete(sessionId);
+  }
+  upsertAssistantActivity(sessionId, text, time) {
+    const previous = this.sessionActivities.get(sessionId)?.at(-1);
+    const id = previous?.kind === "assistant" ? previous.id : `assistant:${++this.activitySequence}`;
+    this.appendActivity(sessionId, "assistant", text, time, id);
   }
   sortedSessions() {
     const priority = {
@@ -4938,7 +5463,11 @@ var HarnessPetRuntime = class {
       sleep: 0,
       offline: 0
     };
-    return [...this.sessions.values()].filter((entry) => entry.state !== "idle" || entry.unread).sort((a, b) => priority[b.state] - priority[a.state] || b.updatedAt - a.updatedAt).slice(0, 64);
+    return [...this.sessions.values()].sort((a, b) => priority[b.state] - priority[a.state] || b.updatedAt - a.updatedAt).slice(0, 64).map((entry, index) => {
+      if (index < 3 || !entry.activities) return entry;
+      const { activities: _activities, ...summary } = entry;
+      return summary;
+    });
   }
   acknowledge(sessionId) {
     const summary = this.sessions.get(sessionId);
@@ -4956,6 +5485,15 @@ var HarnessPetRuntime = class {
     if (this.lastClientOpen?.target === target && now - this.lastClientOpen.at < 5e3) return;
     this.lastClientOpen = { target, at: now };
     const url = this.config.clientUrl ?? process.env.XY_DEEPSEEK_PET_CLIENT_URL ?? "http://127.0.0.1:3080";
+    const launch = process.platform === "darwin" ? { command: "open", args: [url] } : process.platform === "win32" ? { command: "cmd.exe", args: ["/d", "/s", "/c", "start", "", url] } : { command: "xdg-open", args: [url] };
+    const child = spawn(launch.command, launch.args, { stdio: "ignore", windowsHide: true });
+    child.unref();
+  }
+  openSettings() {
+    const now = Date.now();
+    if (this.lastClientOpen?.target === "settings" && now - this.lastClientOpen.at < 5e3) return;
+    this.lastClientOpen = { target: "settings", at: now };
+    const url = petSettingsUrl(this.config.clientUrl ?? process.env.XY_DEEPSEEK_PET_CLIENT_URL ?? "http://127.0.0.1:3080");
     const launch = process.platform === "darwin" ? { command: "open", args: [url] } : process.platform === "win32" ? { command: "cmd.exe", args: ["/d", "/s", "/c", "start", "", url] } : { command: "xdg-open", args: [url] };
     const child = spawn(launch.command, launch.args, { stdio: "ignore", windowsHide: true });
     child.unref();
@@ -4989,6 +5527,21 @@ var HarnessPetRuntime = class {
       }, 100);
     });
   }
+  waitForDesktopClosed(timeoutMs) {
+    if (!this.desktopStatus()) return Promise.resolve();
+    return new Promise((resolveWait, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const interval = setInterval(() => {
+        if (!this.desktopStatus()) {
+          clearInterval(interval);
+          resolveWait();
+        } else if (Date.now() >= deadline) {
+          clearInterval(interval);
+          reject(new Error("Close the desktop pet before replacing its macOS shortcut."));
+        }
+      }, 50);
+    });
+  }
   resolveThemeImport(message) {
     const pending = this.pendingThemeImports.get(message.requestId);
     if (!pending) return;
@@ -5011,6 +5564,10 @@ var HarnessPetRuntime = class {
   }
   touch(agent) {
     this.touched.set(String(agent.id), ++this.sequence);
+  }
+  restoreSessionTitle(agent) {
+    const title = latestVisibleSessionTitle(agent.session);
+    if (title) this.updateSession(String(agent.id), title);
   }
   isRoot(agent) {
     return this.ctx.agents.roots().includes(agent);

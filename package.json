@@ -11,6 +11,7 @@
     "start": "pnpm --filter xy-deepseek-desktop start",
     "test": "vitest run",
     "verify": "pnpm verify:repository && pnpm verify:theme",
+    "preview:readme": "node scripts/preview-readme.mjs",
     "verify:repository": "node scripts/verify-repository.mjs",
     "verify:theme": "node scripts/validate-theme.mjs themes/whale-default/theme.json"
   },

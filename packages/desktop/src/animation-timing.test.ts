@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { animationFrameIndices, nextAnimationDeadline, pacedFrameDuration } from './animation-timing.js'
+import { animationFrameIndices, nextAnimationDeadline, pacedFrameDuration, visibleAnimationFrameIndices } from './animation-timing.js'
 
 describe('animation timing', () => {
   it('subtracts rendering time from the next frame delay', () => {
@@ -17,5 +17,10 @@ describe('animation timing', () => {
   it('slows only the final showcase frames', () => {
     expect(pacedFrameDuration(1000 / 60, 7, 10, 'fast-start-showcase')).toBeCloseTo(1000 / 60)
     expect(pacedFrameDuration(1000 / 60, 8, 10, 'fast-start-showcase')).toBeCloseTo(1000 / 28)
+  })
+
+  it('removes transparent atlas cells without changing the authored frame order', () => {
+    expect(visibleAnimationFrameIndices([0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, 5])).toEqual([0, 1, 2, 3, 4, 5])
+    expect(visibleAnimationFrameIndices([7, 5, 3, 1], [1, 3, 5, 7])).toEqual([7, 5, 3, 1])
   })
 })

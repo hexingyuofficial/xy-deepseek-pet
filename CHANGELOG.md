@@ -7,7 +7,7 @@ All notable changes are documented here. This project follows semantic versionin
 ### Added
 
 - Cordis Host and Harness Web plugin with a real open/close desktop-pet toggle and compact General settings.
-- Sandboxed Electron companion for macOS and Windows with original whale animations, 40%-200% scaling, movement, sleep, press, thinking, completion, failure, and offline states.
+- Sandboxed Electron companion for macOS and Windows with original whale animations, 20%-200% scaling, movement, sleep, press, thinking, completion, failure, and offline states.
 - Up to three prioritized session bubbles, bounded public status text, question/approval attention, exact-session inline replies, and a reconnect action.
 - Native schema-v1/v2 and Petdex v1/v2 ZIP import with bounded archive validation and data-only themes.
 - Data-only `xyPetMenu` extension service and bounded `xy_pet` agent capability.

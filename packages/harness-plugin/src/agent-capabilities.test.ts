@@ -9,7 +9,12 @@ function fixture() {
     tools: { register: vi.fn((definition) => { definitions.push(definition); return () => undefined }) },
   }
   const snapshot = {
-    config: { themeId: 'whale-default', scale: 1, autoLaunch: false },
+    config: {
+      themeId: 'whale-default', scale: 1, autoLaunch: false, walkingEnabled: true,
+      wanderFrequency: 70, wanderDistance: 35, mouseChaseEnabled: false, mouseChaseSpeed: 40,
+      flingEnabled: true, flingResistance: 45,
+      showOnFullScreen: true,
+    },
     themes: [{ id: 'whale-default', name: 'Whale' }],
     menuExtensions: [],
   }
@@ -19,7 +24,7 @@ function fixture() {
     activateTheme: vi.fn(async () => structuredClone(snapshot)),
     update: vi.fn(async () => structuredClone(snapshot)),
   }
-  const runtime = { openDesktop: vi.fn(() => true), openClient: vi.fn(), importThemeArchive: vi.fn() }
+  const runtime = { openDesktop: vi.fn(() => true), openSettings: vi.fn(), importThemeArchive: vi.fn() }
   registerPetAgentCapabilities(ctx as never, runtime as never, settings as never)
   return { sections, definitions, settings, runtime }
 }
@@ -42,5 +47,49 @@ describe('Harness agent pet capability', () => {
     const { definitions, settings } = fixture()
     await definitions[0].execute({ operation: 'set_theme', theme_id: 'whale-default' }, { signal: new AbortController().signal })
     expect(settings.activateTheme).toHaveBeenCalledWith('whale-default')
+  })
+
+  it('opens the dedicated pet settings deep link', async () => {
+    const { definitions, runtime } = fixture()
+    await definitions[0].execute({ operation: 'open_settings' }, { signal: new AbortController().signal })
+    expect(runtime.openSettings).toHaveBeenCalledOnce()
+  })
+
+  it('updates playful movement settings through the model-facing tool', async () => {
+    const { definitions, settings } = fixture()
+    await definitions[0].execute({
+      operation: 'set_movement',
+      walking_enabled: true,
+      wander_frequency: 25,
+      wander_distance: 60,
+      mouse_chase_enabled: true,
+      mouse_chase_speed: 80,
+      fling_enabled: false,
+      fling_resistance: 75,
+    }, { signal: new AbortController().signal })
+    expect(settings.update).toHaveBeenCalledWith(expect.objectContaining({
+      walkingEnabled: true,
+      wanderFrequency: 25,
+      wanderDistance: 60,
+      mouseChaseEnabled: true,
+      mouseChaseSpeed: 80,
+      flingEnabled: false,
+      flingResistance: 75,
+    }))
+  })
+
+  it('configures the cross-platform summon shortcut through the model-facing tool', async () => {
+    const { definitions, settings } = fixture()
+    await definitions[0].execute({
+      operation: 'set_summon',
+      summon_enabled: true,
+      summon_shortcut: 'CommandOrControl+Shift+W',
+      summon_opens_chat: true,
+    }, { signal: new AbortController().signal })
+    expect(settings.update).toHaveBeenCalledWith(expect.objectContaining({
+      teleportShortcutEnabled: true,
+      teleportShortcut: 'CommandOrControl+Shift+W',
+      teleportOpensRecentChat: true,
+    }))
   })
 })

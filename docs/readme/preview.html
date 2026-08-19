@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>README 本地预览 · XY DeepSeek Pet</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --border:#30363d; --link:#58a6ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans GB","PingFang SC",sans-serif; background:var(--bg); color:var(--text); }
+    .bar { position:sticky; top:0; z-index:5; display:flex; justify-content:space-between; gap:12px; padding:10px 20px; border-bottom:1px solid var(--border); background:#010409; font-size:13px; color:var(--muted); }
+    .wrap { max-width:920px; margin:0 auto; padding:32px 20px 80px; }
+    article { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:32px 36px 48px; }
+    h1 { text-align:center; font-size:2rem; margin:.4em 0 .6em; }
+    h2 { border-bottom:1px solid var(--border); padding-bottom:.3em; margin-top:2em; }
+    p { margin:.8em 0; }
+    a { color:var(--link); }
+    img { max-width:100%; height:auto; }
+    p[align="center"], h1[align="center"] { text-align:center; }
+    ul,ol { padding-left:1.4em; }
+    code { background:#21262d; padding:.12em .35em; border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; }
+    pre { background:#0d1117; border:1px solid var(--border); border-radius:8px; padding:14px 16px; overflow:auto; }
+    pre code { background:none; padding:0; }
+    .table-wrap { overflow:auto; margin:1em 0; }
+    table { border-collapse:collapse; width:100%; }
+    th,td { border:1px solid var(--border); padding:8px 10px; text-align:left; }
+    th { background:#21262d; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div>本地预览 · 改 README.md 后运行 node scripts/preview-readme.mjs 再刷新</div>
+    <div>中文是主文档</div>
+  </div>
+  <div class="wrap"><article>
+<p align="center">
+  <img src="demo.gif" width="220" alt="小鲸鱼待机、游走、按扁、下潜思考，再衔着薯条浮上来">
+</p>
+<h1 align="center">XY DeepSeek Pet</h1>
+<p align="center">
+  中文 · <a href="../../README.en.md">English</a>
+</p>
+<p align="center">
+  <img alt="version" src="https://img.shields.io/badge/version-0.1.0-4EA8FF?style=flat-square">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square">
+  <img alt="node" src="https://img.shields.io/badge/Node.js-22%2B-43853d?style=flat-square">
+  <img alt="harness" src="https://img.shields.io/badge/Harness-0.1.0--rc.6-1688f8?style=flat-square">
+  <img alt="macos" src="https://img.shields.io/badge/macOS-verified-111827?style=flat-square">
+  <img alt="windows" src="https://img.shields.io/badge/Windows-source%20ready-111827?style=flat-square">
+  <img alt="petdex" src="https://img.shields.io/badge/Petdex-v1%20%2F%20v2-7c3aed?style=flat-square">
+</p>
+<p align="center">
+  非官方、开源的 DeepSeek Harness 桌面宠物。<br>
+  它能在桌面上把事情做完，也会追着你玩，还能换成你自己的皮肤。
+</p>
+<p align="center">
+  <a href="#实用宠物">实用</a> ·
+  <a href="#趣味宠物">趣味</a> ·
+  <a href="#开放宠物">开放</a> ·
+  <a href="#安装">安装</a> ·
+  <a href="#使用">使用</a> ·
+  <a href="#开发">开发</a>
+</p>
+<p align="center">
+  <img src="gallery.png" alt="小鲸鱼待机、睡觉、游走、下潜、按扁和失败动作预览" width="720">
+</p>
+<h2 id="它是什么">它是什么</h2>
+<p>一句话：一只跟着真实 Harness 任务活着的小鲸鱼。</p>
+<p>任务一开始，它会扎进水里思考；工具在跑，它就停在水下；问你问题或等你审批时，气泡会顶到前面。你可以直接回原会话、在气泡里点“本次允许 / 拒绝”，或长按回到 Harness 页面。做完之后，它再浮上来，嘴里可能衔着完全不同的东西。</p>
+<p>它不是浏览器里的装饰图，也不是只能换皮肤的摆件。竞争力就三件事：</p>
+<div class="table-wrap"><table><thead><tr><th>它是</th><th>你得到的</th></tr></thead><tbody><tr><td>实用宠物</td><td>回复、审批、打开页面、做成桌面入口，都不用先去找浏览器窗口</td></tr><tr><td>趣味宠物</td><td>追鼠标、被甩出去、真下潜，上来还可能衔着薯条或宝箱</td></tr><tr><td>开放宠物</td><td>换皮肤、换音效、换快捷方式图标，并兼容 <a href="https://petdex.dev/">Petdex</a></td></tr></tbody></table></div>
+<p>桌宠只展示公开助手文字，以及“思考中 / 调用工具 / 等待回答 / 等待审批”。隐藏的 <code>reasoning-delta</code>、完整对话、原始工具参数、审批理由和桥接凭据都不会出桌面桥。</p>
+<h2 id="实用宠物">实用宠物</h2>
+<p>事情在桌面上就能做完。</p>
+<p align="center">
+  <img src="useful.png" alt="回复、审批、打开页面和桌面快捷方式" width="820">
+</p>
+<ul><li><strong>回原会话</strong>：最多三个会话气泡。点开就能打字，<code>Enter</code> 发送，<code>Shift+Enter</code> 换行。回复会回到对应会话，不用先翻网页标签。</li><li><strong>在气泡里做选择</strong>：提问会明确提示；审批可以直接点“本次允许 / 拒绝”。不必为了一个确认跳回页面。</li><li><strong>快速回到页面</strong>：默认长按打开 Harness，也可改成双击。右键也能打开页面、回复最近会话或进入设置。</li><li><strong>桌面快捷方式</strong>：设置里可创建一个同时拉起 Harness、网页和桌宠的入口。图标可用默认小鲸鱼，也可以换成自己的 PNG。</li></ul>
+<p>侧边栏的“打开桌宠 / 关闭桌宠”是真开关。只关桌宠不会停掉 Harness。</p>
+<h2 id="趣味宠物">趣味宠物</h2>
+<p>它会玩，而且玩的是真实任务状态，不是循环播放一张待机图。</p>
+<p align="center">
+  <img src="playful.png" alt="追鼠标、抛掷惯性、下潜思考和完成战利品" width="820">
+</p>
+<ul><li><strong>追着鼠标跑</strong>：打开后会跟着指针走，速度可调。你去点它、拖它或回消息时，会先停下来。</li><li><strong>可以被甩出去</strong>：快速拖再松手会带着惯性滑出去，只在当前屏幕里反弹。阻力越高，停得越快。</li><li><strong>DeepSeek 时真下潜</strong>：任务一开始就扎进水里，不是换一张静止图。工具调用时也停在水下。</li><li><strong>每次上来带的东西不一样</strong>：常规完成会均分薯条、眼罩、树枝、靴子等战利品。宝箱是单独奖池，固定 <code>0.1%</code>，也就是大约一千次完成里会有一次。这个概率写死在运行时里，主题包改不了。</li></ul>
+<p align="center">
+  <img src="dive.png" alt="从待机下潜思考再带东西浮上来" width="820">
+</p>
+<p align="center">
+  <img src="loot.png" alt="完成时可能带回的战利品，宝箱为百分之零点一" width="820">
+</p>
+<p>闲着时它会自己游一会儿；十分钟没人理就会打瞌睡。按一下会被按扁再弹回来。大小可在 20% 到 200% 之间调。</p>
+<h2 id="开放宠物">开放宠物</h2>
+<p>默认小鲸鱼只是第一套皮肤。外观、声音、快捷方式图标都是可替换的数据，不是写死在程序里的。</p>
+<p align="center">
+  <img src="open.png" alt="Petdex 皮肤、原生主题、提示音和自定义图标" width="820">
+</p>
+<ul><li><strong>兼容 Petdex</strong>：设置里选择 ZIP 即可导入 <a href="https://petdex.dev/">Petdex</a> v1 / v2 宠物包。公开目录收录了数千只宠物；导入时会校验并映射到桌宠状态，不会执行包里的脚本。</li><li><strong>也能用原生主题</strong>：从可直接导入的 <a href="../../examples/minimal-theme/"><code>examples/minimal-theme</code></a> 开始，按<a href="../../docs/theme-authoring.md">主题制作指南</a>和 <a href="../../schemas/theme.schema.json"><code>schemas/theme.schema.json</code></a> 做自己的包。</li><li><strong>音效可换</strong>：可选的 <code>xy-deepseek-sounds</code> 管任务完成、工具成功和工具失败。三路可单独开关，也可导入不超过 10 秒的本地 WAV / MP3 / OGG。不装桌宠也能单独用。</li><li><strong>快捷方式图标可换</strong>：宠物皮肤和桌面图标是分开的。换主题不会改快捷方式；快捷方式也可以用自己的 PNG。</li></ul>
+<p>主题只含图片和 JSON。不接受脚本、网址或 shell 命令，也不会拦截 Harness 的全局文件拖入。兼容范围见<a href="../../docs/theme-compatibility.md">主题兼容说明</a>。</p>
+<p>装好之后，Harness agent 也知道这些接口。你可以直接说“帮我换一个本地宠物包”或“把任务完成提示音换成这个文件”。</p>
+<h2 id="安装">安装</h2>
+<p>需要 DeepSeek Harness <code>0.1.0-rc.6</code> 和 Node.js 22 或更高版本。当前走 Harness 的 <code>web</code> profile。</p>
+<ol><li>如果 <code>dsh web</code> 正在运行，先回到启动它的终端按 <code>Ctrl+C</code>，等进程退出。</li><li>安装插件：</li></ol>
+<p>   ``<code>sh
+   dsh plugin --profile web add xy-deepseek-pet
+   </code>``</p>
+<p>   桌面运行时 <code>xy-deepseek-desktop</code> 会自动跟上。第一次还要下载当前平台的 Electron，大约 120-150 MB；终端可能会一段时间只显示 <code>Downloading Electron binary...</code>。</p>
+<ol><li>再启动 Harness：</li></ol>
+<p>   ``<code>sh
+   dsh web
+   </code>``</p>
+<p>侧边栏随后会出现“打开桌宠”。第一次不会自动弹出来，可在通用设置里打开“随 Harness 启动”。不要在旧服务还占着 3080 时再开一份 <code>dsh web</code>。</p>
+<p>提示音是可选的：</p>
+<pre><code class="language-sh">dsh plugin --profile web add xy-deepseek-sounds
+</code></pre>
+<div class="table-wrap"><table><thead><tr><th>安装内容</th><th>你会得到什么</th></tr></thead><tbody><tr><td><code>xy-deepseek-pet</code></td><td>Cordis Host 桥、Harness 设置页和 Electron 桌宠</td></tr><tr><td><code>xy-deepseek-sounds</code></td><td>完成 / 工具结果提示音，不安装 Electron</td></tr><tr><td>两者都装</td><td>声音设置收进“桌面宠物”，不会重复听同一批事件</td></tr></tbody></table></div>
+<p>如果安装日志里错误地出现 <code>workspace:</code>，先确认装的是 npm registry 版本，而不是仓库目录或旧 tarball：</p>
+<pre><code class="language-sh">npm view xy-deepseek-pet@0.1.0 dependencies
+dsh plugin --profile web list xy-deepseek-pet xy-deepseek-desktop
+</code></pre>
+<p>registry 上的 <code>xy-deepseek-pet@0.1.0</code> 依赖是普通的 <code>xy-deepseek-desktop: 0.1.0</code>，不用改成 <code>file:</code>。如果日志明确说 pnpm 拦住了 Electron 的安装脚本，到日志里写的 profile 目录运行 <code>pnpm approve-builds</code>，允许 <code>electron</code> 后再装一次。</p>
+<h2 id="使用">使用</h2>
+<ul><li>侧边栏开关桌宠；关桌宠不等于关 Harness。</li><li>单击气泡回复；审批按钮就在气泡里。</li><li>右键：打开 Harness、回复最近会话、打开设置、重新连接或关掉桌宠。</li><li>所有偏好都在 <strong>通用设置 > 桌面宠物</strong>：主题、缩放、游动、追鼠标、抛掷阻力、全屏时是否显示、导入 ZIP、桌面快捷方式。</li><li>选 ZIP 后会先验证再启用。</li></ul>
+<h2 id="平台状态">平台状态</h2>
+<ul><li>macOS：源码构建、npm tarball 干净安装和桌面进程启动已验证。</li><li>Windows：共用同一套 Electron 源码；启动参数、PowerShell 播放和构建路径有自动化测试。0.1.0 还没做完交互式 Windows GUI 全流程验证。</li><li>0.1.0 未签名、未公证，也没有独立的 <code>.dmg</code>、<code>.msi</code> 或 <code>.exe</code>。系统若拦截未知应用，请走 npm / Harness 安装，不要绕过来源不明的安全警告。</li></ul>
+<h2 id="开发">开发</h2>
+<pre><code class="language-sh">pnpm install --frozen-lockfile
+pnpm build
+pnpm test
+pnpm verify
+</code></pre>
+<pre><code class="language-sh">pnpm --filter xy-deepseek-desktop start
+pnpm --filter xy-deepseek-desktop dev -- --demo-error
+pnpm --filter xy-deepseek-desktop dev -- --demo-approval
+</code></pre>
+<p>更细的说明在<a href="../../docs/architecture.md">架构</a>、<a href="../../docs/cordis-integration.md">Cordis 集成</a>和<a href="../../docs/plugin-api.md">插件 API</a>。</p>
+<h2 id="开源与安全">开源与安全</h2>
+<p>代码使用 <a href="../../LICENSE">MIT License</a>。默认鲸鱼和内置声音的来源、许可与哈希记在各自的 provenance 文件里。主题和菜单扩展都是数据接口。安全问题请按 <a href="../../SECURITY.md">SECURITY.md</a> 私下报告。</p>
+<p>本项目与 DeepSeek 无隶属、合作或背书关系；DeepSeek 名称及相关标识归其权利人所有。</p>
+  </article></div>
+</body>
+</html>

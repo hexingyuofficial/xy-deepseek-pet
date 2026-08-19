@@ -11,17 +11,19 @@
     <main id="app" aria-label="XY DeepSeek Pet">
       <section id="bubble-stack" class="bubble-stack is-hidden" aria-live="polite"></section>
 
-      <div id="toast" class="toast is-hidden" role="status"></div>
-
       <nav id="pixel-menu" class="pixel-menu is-hidden" aria-label="桌宠菜单">
         <button type="button" data-menu-action="open-client" data-i18n="openClient">打开客户端</button>
-        <button type="button" data-menu-action="chat" data-i18n="reply">回复最近活跃消息</button>
+        <div class="menu-submenu-host">
+          <button id="menu-recent-chat" type="button" aria-haspopup="menu" aria-expanded="false"><span data-i18n="reply">回复最近活跃消息</span><span class="menu-chevron" aria-hidden="true">›</span></button>
+        </div>
         <button id="menu-settings" type="button" data-menu-action="settings" data-i18n="themesSettings">在 Harness 中打开设置</button>
         <button id="menu-reconnect" class="is-hidden" type="button" data-menu-action="reconnect" data-i18n="reconnect">检查连接</button>
         <button type="button" data-menu-action="quit" data-i18n="quitPet">关闭桌宠</button>
+        <button id="menu-mouse-chase" class="menu-check-action" type="button" role="menuitemcheckbox" aria-checked="false" data-menu-action="toggle-chase"><span class="menu-check" aria-hidden="true">✓</span><span data-i18n="chaseMouse">追逐鼠标</span></button>
       </nav>
+      <div id="recent-session-menu" class="recent-session-menu" role="menu" aria-label="最近活跃会话"></div>
 
-      <button id="pet-stage" type="button" aria-label="XY DeepSeek Pet" title="XY DeepSeek Pet">
+      <button id="pet-stage" type="button" aria-label="XY DeepSeek Pet">
         <canvas id="pet-canvas" width="192" height="208"></canvas>
         <span id="attention-badge" class="attention-badge is-hidden" aria-label="Needs attention">!</span>
       </button>

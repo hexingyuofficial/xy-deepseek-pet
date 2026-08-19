@@ -1,6 +1,57 @@
+import type { PetState } from '@xy-deepseek-pet/protocol'
 import type { ThemeAnimation, ThemeManifest } from './theme.js'
 
 export const JACKPOT_PROBABILITY = 0.001
+
+export interface TurnActivityDecision {
+  remember: boolean
+  enterThinking: boolean
+}
+
+export function turnActivityDecision(
+  state: PetState,
+  sessionId: string | undefined,
+  turn: number | undefined,
+  lastObservedTurn: number | undefined,
+): TurnActivityDecision {
+  const active = state === 'thinking' || state === 'working' || state === 'needsInput'
+  if (!active || !sessionId || turn === undefined || turn === lastObservedTurn) {
+    return { remember: false, enterThinking: false }
+  }
+  return { remember: true, enterThinking: state === 'thinking' }
+}
+
+export function completionFollowupState(
+  currentState: PetState,
+  completionIsCurrent: boolean,
+): PetState | undefined {
+  if (!completionIsCurrent) return undefined
+  return currentState === 'complete' ? 'idle' : currentState
+}
+
+export function shouldPlayStateChange(
+  previousState: PetState | undefined,
+  nextState: PetState,
+  holdingPress: boolean,
+  completionActive: boolean,
+): boolean {
+  if (previousState === nextState || holdingPress) return false
+  const activeTurnStates: readonly PetState[] = ['thinking', 'working', 'needsInput']
+  if (previousState && activeTurnStates.includes(previousState) && activeTurnStates.includes(nextState)) return false
+  return !(previousState === 'complete' && nextState === 'idle' && completionActive)
+}
+
+export function shouldSwitchWalkFacing(
+  previousState: PetState | undefined,
+  nextState: PetState,
+  previousFacing: 'left' | 'right' | undefined,
+  nextFacing: 'left' | 'right',
+): boolean {
+  return previousState === 'walk'
+    && nextState === 'walk'
+    && previousFacing !== undefined
+    && previousFacing !== nextFacing
+}
 
 function itemAt<T>(items: readonly T[], random: number): T | undefined {
   if (items.length === 0) return undefined
@@ -21,6 +72,10 @@ export function selectCompletionAnimation(
     return itemAt(jackpot, variantRoll) ?? fallback
   }
   return itemAt(regular, variantRoll) ?? fallback
+}
+
+export function isJackpotCompletionAnimation(manifest: ThemeManifest, animation: ThemeAnimation): boolean {
+  return manifest.completionVariants?.jackpot?.includes(animation) === true
 }
 
 export function selectErrorSequence(

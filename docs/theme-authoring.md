@@ -19,7 +19,7 @@ V2 themes may add these optional animation slots:
 - `errorEnter`, `errorLoop`, and `errorExit`: a correlated failure sequence;
 - `completionVariants.regular[]` and `completionVariants.jackpot[]`: replaceable completion-find pools.
 
-The V2 runtime fixes completion selection policy. Regular completion assets divide the non-jackpot probability equally. If a jackpot pool exists, that entire pool has a fixed total probability of `0.1%`, divided equally among its assets. If no jackpot pool exists, regular assets divide `100%`. The theme manifest contains no probability field, and the settings UI does not expose probability controls. There is no product-level limit on the number of assets in either pool, although the importer still enforces global archive, file-count, decoded-pixel, and memory safety budgets.
+The V2 runtime fixes completion selection policy. Regular completion assets divide the non-jackpot probability equally. If a jackpot pool exists, that entire pool has a fixed total probability of `0.1%`, divided equally among its assets. If no jackpot pool exists, regular assets divide `100%`. The theme manifest contains no probability field, and the settings UI does not expose probability controls. There is no product-level limit on the number of assets in either pool, although the importer still enforces global compressed-size, expanded-size, file-count, extension, and path safety limits.
 
 Failure animations must be authored as a group so the character does not jump between unrelated poses:
 

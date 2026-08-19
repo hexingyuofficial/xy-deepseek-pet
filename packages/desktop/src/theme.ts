@@ -272,7 +272,8 @@ export class ThemeManager {
     const metadata = JSON.parse(await readFile(metadataPath, 'utf8')) as Record<string, unknown>
     const sourceId = typeof metadata.id === 'string' ? metadata.id : typeof metadata.slug === 'string' ? metadata.slug : ''
     const displayName = typeof metadata.displayName === 'string' ? metadata.displayName : sourceId
-    const version = metadata.spriteVersionNumber
+    // Petdex classic packages predate this field; upstream treats omission as v1.
+    const version = metadata.spriteVersionNumber === undefined ? 1 : metadata.spriteVersionNumber
     if (!sourceId || !displayName || (version !== 1 && version !== 2)) throw new Error('Unsupported Petdex metadata')
     const sheetName = typeof metadata.spritesheetPath === 'string' ? metadata.spritesheetPath : 'spritesheet.webp'
     assertSafeRelativePath(sheetName)

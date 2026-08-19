@@ -3,8 +3,8 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import type { PetMenuContribution, PetMenuRegistry } from './menu-registry.js'
 
-export const PET_SCALES = [0.4, 0.75, 1, 1.25, 1.5, 2] as const
-export const PET_SCALE_MIN = 0.4
+export const PET_SCALES = [0.2, 0.4, 0.75, 1, 1.25, 1.5, 2] as const
+export const PET_SCALE_MIN = 0.2
 export const PET_SCALE_MAX = 2
 export const PET_SCALE_STEP = 0.05
 export const PET_MENU_ACTIONS = ['open-client', 'chat', 'settings'] as const
@@ -14,6 +14,16 @@ export interface PetSettings {
   reducedMotion: boolean
   bubbleVisible: boolean
   walkingEnabled: boolean
+  wanderFrequency: number
+  wanderDistance: number
+  mouseChaseEnabled: boolean
+  mouseChaseSpeed: number
+  flingEnabled: boolean
+  flingResistance: number
+  showOnFullScreen: boolean
+  teleportShortcutEnabled: boolean
+  teleportShortcut: string
+  teleportOpensRecentChat: boolean
   scale: number
   activationGesture: 'doubleClick' | 'longPress'
   locale: 'system' | 'zh-CN' | 'en'
@@ -31,15 +41,32 @@ export interface PetThemeView {
 
 export interface PetSettingsSnapshot {
   config: PetSettings
+  stats: PetStats
   themes: PetThemeView[]
   menuExtensions: PetMenuContribution[]
 }
+
+export interface PetStats {
+  treasuresFound: number
+}
+
+const DEFAULT_PET_STATS: PetStats = { treasuresFound: 0 }
 
 export const DEFAULT_PET_SETTINGS: PetSettings = {
   themeId: 'whale-default',
   reducedMotion: false,
   bubbleVisible: true,
   walkingEnabled: true,
+  wanderFrequency: 70,
+  wanderDistance: 35,
+  mouseChaseEnabled: false,
+  mouseChaseSpeed: 40,
+  flingEnabled: true,
+  flingResistance: 45,
+  showOnFullScreen: true,
+  teleportShortcutEnabled: false,
+  teleportShortcut: 'CommandOrControl+Shift+P',
+  teleportOpensRecentChat: false,
   scale: 1,
   activationGesture: 'longPress',
   locale: 'system',
@@ -55,6 +82,18 @@ export function petSettingsPath(): string {
   return join(petRuntimeRoot(), 'pet-settings.json')
 }
 
+export function petStatsPath(): string {
+  return join(petRuntimeRoot(), 'pet-stats.json')
+}
+
+export function resolvePetStats(input: Partial<PetStats> = {}): PetStats {
+  return {
+    treasuresFound: typeof input.treasuresFound === 'number' && Number.isSafeInteger(input.treasuresFound) && input.treasuresFound >= 0
+      ? input.treasuresFound
+      : 0,
+  }
+}
+
 export function resolvePetSettings(input: Partial<PetSettings> = {}): PetSettings {
   const scale = typeof input.scale === 'number' && Number.isFinite(input.scale) && input.scale >= PET_SCALE_MIN && input.scale <= PET_SCALE_MAX
     ? Math.round(input.scale / PET_SCALE_STEP) * PET_SCALE_STEP
@@ -62,11 +101,26 @@ export function resolvePetSettings(input: Partial<PetSettings> = {}): PetSetting
   const menuActions = Array.isArray(input.menuActions)
     ? [...new Set(input.menuActions.filter((value): value is string => typeof value === 'string' && /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(value) && value.length <= 96))]
     : [...DEFAULT_PET_SETTINGS.menuActions]
+  const movementLevel = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value)
+    ? Math.round(Math.min(100, Math.max(0, value)))
+    : fallback
   return {
     themeId: typeof input.themeId === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.themeId) ? input.themeId : DEFAULT_PET_SETTINGS.themeId,
     reducedMotion: input.reducedMotion === true,
     bubbleVisible: input.bubbleVisible !== false,
     walkingEnabled: input.walkingEnabled !== false,
+    wanderFrequency: movementLevel(input.wanderFrequency, DEFAULT_PET_SETTINGS.wanderFrequency),
+    wanderDistance: movementLevel(input.wanderDistance, DEFAULT_PET_SETTINGS.wanderDistance),
+    mouseChaseEnabled: input.mouseChaseEnabled === true,
+    mouseChaseSpeed: movementLevel(input.mouseChaseSpeed, DEFAULT_PET_SETTINGS.mouseChaseSpeed),
+    flingEnabled: input.flingEnabled !== false,
+    flingResistance: movementLevel(input.flingResistance, DEFAULT_PET_SETTINGS.flingResistance),
+    showOnFullScreen: input.showOnFullScreen !== false,
+    teleportShortcutEnabled: input.teleportShortcutEnabled === true,
+    teleportShortcut: typeof input.teleportShortcut === 'string' && /^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/.test(input.teleportShortcut)
+      ? input.teleportShortcut
+      : DEFAULT_PET_SETTINGS.teleportShortcut,
+    teleportOpensRecentChat: input.teleportOpensRecentChat === true,
     scale,
     activationGesture: input.activationGesture === 'doubleClick' || input.activationGesture === 'longPress'
       ? input.activationGesture
@@ -80,7 +134,10 @@ export function resolvePetSettings(input: Partial<PetSettings> = {}): PetSetting
 
 export class PetSettingsController {
   private current: PetSettings = structuredClone(DEFAULT_PET_SETTINGS)
+  private stats: PetStats = structuredClone(DEFAULT_PET_STATS)
   private readonly settingsPath = petSettingsPath()
+  private readonly statsPath = petStatsPath()
+  private statsWrite = Promise.resolve()
 
   constructor(private readonly repositoryRoot?: string, private readonly menuRegistry?: PetMenuRegistry) {}
 
@@ -91,7 +148,13 @@ export class PetSettingsController {
     } catch {
       this.current = structuredClone(DEFAULT_PET_SETTINGS)
     }
+    try {
+      this.stats = resolvePetStats(JSON.parse(await readFile(this.statsPath, 'utf8')) as Partial<PetStats>)
+    } catch {
+      this.stats = structuredClone(DEFAULT_PET_STATS)
+    }
     await this.persist()
+    await this.persistStats()
   }
 
   get config(): PetSettings { return structuredClone(this.current) }
@@ -99,6 +162,7 @@ export class PetSettingsController {
   async snapshot(): Promise<PetSettingsSnapshot> {
     return {
       config: this.config,
+      stats: structuredClone(this.stats),
       themes: await this.listThemes(),
       menuExtensions: this.menuRegistry?.list() ?? [],
     }
@@ -115,7 +179,13 @@ export class PetSettingsController {
     if (!themes.some((theme) => theme.id === themeId)) throw new Error(`Unknown pet theme: ${themeId}`)
     this.current.themeId = themeId
     await this.persist()
-    return { config: this.config, themes, menuExtensions: this.menuRegistry?.list() ?? [] }
+    return { config: this.config, stats: structuredClone(this.stats), themes, menuExtensions: this.menuRegistry?.list() ?? [] }
+  }
+
+  async recordTreasureFound(): Promise<void> {
+    this.stats.treasuresFound += 1
+    this.statsWrite = this.statsWrite.catch(() => undefined).then(() => this.persistStats())
+    await this.statsWrite
   }
 
   async listThemes(): Promise<PetThemeView[]> {
@@ -150,6 +220,12 @@ export class PetSettingsController {
     const staging = `${this.settingsPath}.partial-${process.pid}`
     await writeFile(staging, `${JSON.stringify(this.current, null, 2)}\n`, { mode: 0o600 })
     await rename(staging, this.settingsPath)
+  }
+
+  private async persistStats(): Promise<void> {
+    const staging = `${this.statsPath}.partial-${process.pid}`
+    await writeFile(staging, `${JSON.stringify(this.stats, null, 2)}\n`, { mode: 0o600 })
+    await rename(staging, this.statsPath)
   }
 }
 

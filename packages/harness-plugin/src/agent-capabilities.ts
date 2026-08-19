@@ -5,7 +5,7 @@ import { basename } from 'node:path'
 import type { HarnessPetRuntime } from './index.js'
 import { PET_SCALE_MAX, PET_SCALE_MIN, PET_SCALE_STEP, type PetSettingsController } from './settings.js'
 
-const OPERATIONS = ['status', 'open_pet', 'open_settings', 'set_theme', 'import_theme', 'set_scale', 'create_launcher'] as const
+const OPERATIONS = ['status', 'open_pet', 'open_settings', 'set_theme', 'import_theme', 'set_scale', 'set_movement', 'set_summon', 'create_launcher'] as const
 
 function result(message: string, snapshot: Awaited<ReturnType<PetSettingsController['snapshot']>>) {
   return {
@@ -26,7 +26,7 @@ export function registerPetAgentCapabilities(
   ctx.systemPrompt.section({
     name: 'tool:xy-deepseek-pet',
     order: 145,
-    text: 'XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 40%-200% scaling, Harness General settings, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, or change the pet/skin, or explicitly asks to create the desktop shortcut. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials.',
+    text: 'XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 20%-200% scaling, playful movement, a configurable global shortcut that summons the pet to the pointer, Harness General settings, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, change, summon, or tune the pet/skin, or explicitly asks to create the desktop shortcut. Movement levels are approximate 0-100 fun levels. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials.',
   })
   ctx.tools.register(defineTool({
     name: 'xy_pet',
@@ -35,7 +35,17 @@ export function registerPetAgentCapabilities(
       operation: { type: 'string', required: true, enum: OPERATIONS, description: OPERATIONS.join(' | ') },
       theme_id: { type: 'string', description: 'Exact installed theme ID for set_theme.' },
       path: { type: 'string', description: 'Local .zip path supplied by the user or downloaded after the user explicitly requested a skin for import_theme.' },
-      scale: { type: 'number', description: 'Pet scale from 0.4 through 2.0 for set_scale.' },
+      scale: { type: 'number', description: 'Pet scale from 0.2 through 2.0 for set_scale.' },
+      walking_enabled: { type: 'boolean', description: 'Enable or disable automatic wandering for set_movement.' },
+      wander_frequency: { type: 'number', description: 'Approximate 0-100 level from occasional to frequent for set_movement.' },
+      wander_distance: { type: 'number', description: 'Approximate 0-100 random movement distance level for set_movement.' },
+      mouse_chase_enabled: { type: 'boolean', description: 'Enable or disable playful pointer chasing for set_movement.' },
+      mouse_chase_speed: { type: 'number', description: 'Approximate 0-100 chase speed level for set_movement.' },
+      fling_enabled: { type: 'boolean', description: 'Enable or disable throw inertia for set_movement.' },
+      fling_resistance: { type: 'number', description: 'Approximate 0-100 throw resistance; higher values stop sooner.' },
+      summon_enabled: { type: 'boolean', description: 'Enable or disable the global pet summon shortcut for set_summon.' },
+      summon_shortcut: { type: 'string', description: 'Electron accelerator such as CommandOrControl+Shift+P for set_summon.' },
+      summon_opens_chat: { type: 'boolean', description: 'Open the most recent reply panel after summoning for set_summon.' },
       launcher_name: { type: 'string', description: 'Desktop shortcut display name for create_launcher; defaults to DeepSeek Harness.' },
       launcher_icon: { type: 'string', enum: ['calm', 'custom'], description: 'Bundled cartoon whale icon or custom PNG for create_launcher.' },
     },
@@ -71,8 +81,8 @@ export function registerPetAgentCapabilities(
         if (!runtime.openDesktop()) throw new Error('The desktop companion executable is unavailable')
         message = 'XY DeepSeek Pet is open.'
       } else if (args.operation === 'open_settings') {
-        runtime.openClient()
-        message = 'Harness settings are open. The Pet group is under General settings.'
+        runtime.openSettings()
+        message = 'Harness settings are open at the Desktop pet group.'
       } else if (args.operation === 'set_theme') {
         if (!args.theme_id) throw new Error('theme_id is required for set_theme')
         await settings.activateTheme(args.theme_id)
@@ -84,12 +94,45 @@ export function registerPetAgentCapabilities(
         message = `Pet theme ${themeId} was imported and activated.`
       } else if (args.operation === 'set_scale') {
         if (args.scale === undefined || !Number.isFinite(args.scale) || args.scale < PET_SCALE_MIN || args.scale > PET_SCALE_MAX) {
-          throw new Error('scale must be between 0.4 and 2.0')
+          throw new Error('scale must be between 0.2 and 2.0')
         }
         const next = settings.config
         next.scale = Math.round(args.scale / PET_SCALE_STEP) * PET_SCALE_STEP
         await settings.update(next)
         message = `Pet scale changed to ${Math.round(next.scale * 100)}%.`
+      } else if (args.operation === 'set_movement') {
+        const levels = [args.wander_frequency, args.wander_distance, args.mouse_chase_speed, args.fling_resistance]
+        if (levels.some((value) => value !== undefined && (!Number.isFinite(value) || value < 0 || value > 100))) {
+          throw new Error('movement levels must be between 0 and 100')
+        }
+        if (args.walking_enabled === undefined && args.wander_frequency === undefined && args.wander_distance === undefined
+          && args.mouse_chase_enabled === undefined && args.mouse_chase_speed === undefined
+          && args.fling_enabled === undefined && args.fling_resistance === undefined) {
+          throw new Error('set_movement requires at least one movement setting')
+        }
+        const next = settings.config
+        if (args.walking_enabled !== undefined) next.walkingEnabled = args.walking_enabled
+        if (args.wander_frequency !== undefined) next.wanderFrequency = Math.round(args.wander_frequency)
+        if (args.wander_distance !== undefined) next.wanderDistance = Math.round(args.wander_distance)
+        if (args.mouse_chase_enabled !== undefined) next.mouseChaseEnabled = args.mouse_chase_enabled
+        if (args.mouse_chase_speed !== undefined) next.mouseChaseSpeed = Math.round(args.mouse_chase_speed)
+        if (args.fling_enabled !== undefined) next.flingEnabled = args.fling_enabled
+        if (args.fling_resistance !== undefined) next.flingResistance = Math.round(args.fling_resistance)
+        await settings.update(next)
+        message = 'Pet movement settings updated.'
+      } else if (args.operation === 'set_summon') {
+        if (args.summon_enabled === undefined && args.summon_shortcut === undefined && args.summon_opens_chat === undefined) {
+          throw new Error('set_summon requires at least one summon setting')
+        }
+        if (args.summon_shortcut !== undefined && !/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/.test(args.summon_shortcut)) {
+          throw new Error('summon_shortcut must be a valid accelerator such as CommandOrControl+Shift+P')
+        }
+        const next = settings.config
+        if (args.summon_enabled !== undefined) next.teleportShortcutEnabled = args.summon_enabled
+        if (args.summon_shortcut !== undefined) next.teleportShortcut = args.summon_shortcut
+        if (args.summon_opens_chat !== undefined) next.teleportOpensRecentChat = args.summon_opens_chat
+        await settings.update(next)
+        message = 'Pet summon shortcut updated.'
       } else if (args.operation === 'create_launcher') {
         const iconId = args.launcher_icon === 'custom' ? 'custom' : 'calm'
         let fileName = ''
@@ -101,7 +144,7 @@ export function registerPetAgentCapabilities(
           fileName = basename(args.path)
           dataBase64 = (await readFile(args.path)).toString('base64')
         }
-        const created = runtime.createLauncher(args.launcher_name || 'DeepSeek Harness', iconId, fileName, dataBase64)
+        const created = await runtime.createLauncher(args.launcher_name || 'DeepSeek Harness', iconId, fileName, dataBase64)
         message = `${created.displayName} desktop shortcut was created for ${created.platform}.`
       }
       return result(message, await settings.snapshot())

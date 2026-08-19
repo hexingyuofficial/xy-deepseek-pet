@@ -14,6 +14,14 @@ export function animationFrameIndices(frameCount: number, pacing?: AnimationPaci
   return indices
 }
 
+export function visibleAnimationFrameIndices(
+  indices: readonly number[],
+  visible: readonly number[],
+): number[] {
+  const visibleSet = new Set(visible)
+  return indices.filter((index) => visibleSet.has(index))
+}
+
 export function pacedFrameDuration(
   authoredDurationMs: number,
   frameIndex: number,

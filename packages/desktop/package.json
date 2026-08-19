@@ -27,9 +27,11 @@
   },
   "dependencies": {
     "electron": "^43.4.0",
+    "markdown-it": "^15.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@xy-deepseek-pet/protocol": "workspace:*",
     "ajv": "8.17.1",
     "fflate": "^0.8.2",

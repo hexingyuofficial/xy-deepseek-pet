@@ -7,7 +7,7 @@ export interface PetRuntimeControls {
   desktopStatus(): boolean
   closeDesktop(): boolean
   importTheme(fileName: string, dataBase64: string): Promise<string>
-  createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): { displayName: string; platform: 'macOS' | 'Windows' }
+  createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): Promise<{ displayName: string; platform: 'macOS' | 'Windows' }>
 }
 
 export class PetSettingsGateway extends TypertRemoteService {
@@ -24,7 +24,7 @@ export class PetSettingsGateway extends TypertRemoteService {
   @Remote openDesktop(): boolean { return this.runtime.openDesktop() }
   @Remote desktopStatus(): boolean { return this.runtime.desktopStatus() }
   @Remote closeDesktop(): boolean { return this.runtime.closeDesktop() }
-  @Remote createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): { displayName: string; platform: 'macOS' | 'Windows' } {
+  @Remote createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): Promise<{ displayName: string; platform: 'macOS' | 'Windows' }> {
     return this.runtime.createLauncher(name, iconId, fileName, dataBase64)
   }
 }
