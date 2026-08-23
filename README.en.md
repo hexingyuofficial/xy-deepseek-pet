@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.1.0-4EA8FF?style=flat-square">
+  <img alt="version" src="https://img.shields.io/badge/version-0.1.1-4EA8FF?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square">
   <img alt="node" src="https://img.shields.io/badge/Node.js-22%2B-43853d?style=flat-square">
   <img alt="harness" src="https://img.shields.io/badge/Harness-0.1.0--rc.6-1688f8?style=flat-square">
@@ -40,7 +40,7 @@ The Chinese README is the main document. This English page follows the same thre
 
 ## What it is
 
-A whale that lives on the real Harness task. It dives when work starts, stays underwater during tool calls, and brings the question or approval to a desktop bubble. You can reply to the exact session, tap **Allow once / Reject** in the bubble, or long-press back into Harness. When the turn finishes, it surfaces with a different find.
+A whale that lives on the real Harness task. It dives when work starts, stays underwater during tool calls, and brings the question or approval to a desktop bubble. You can reply to the exact session, tap **Allow once / Reject** in the bubble, or long-press the whale to dictate with the system speech recognizer. When the turn finishes, it surfaces with a different find.
 
 That is the product: not a browser ornament, and not a skin-only toy.
 
@@ -60,7 +60,7 @@ The companion only streams public assistant text and activity such as thinking, 
 
 - Up to three session bubbles. Click to type; `Enter` sends to the exact session.
 - Questions and approvals come to the front. **Allow once / Reject** lives in the bubble.
-- Long-press opens Harness by default; double-click is optional. The context menu can do the same.
+- System dictation starts after a `0.5` second long press by default and inserts the transcript into the latest session's reply box for review; double-click opens Harness. Either gesture can independently be assigned to **Record**, **Open latest session details**, **Open Harness**, or **No action**. In double-click recording mode, double-click again or use Send to stop. Dictation never sends automatically.
 - Settings can create a desktop shortcut that starts Harness, the web client, and the pet. The icon can be the bundled whale or your own PNG.
 
 **Open pet / Close pet** in the sidebar is a real toggle. Closing the pet does not stop Harness.
@@ -129,29 +129,40 @@ dsh plugin --profile web add xy-deepseek-sounds
 | --- | --- |
 | `xy-deepseek-pet` | Cordis Host bridge, Harness settings, and the Electron companion |
 | `xy-deepseek-sounds` | Completion and tool-result sounds without Electron |
-| Both | Sound controls merge into the Desktop pet group |
+| Both | Sound controls merge into Settings > Plugins > Desktop pet |
 
 If an install unexpectedly reports `workspace:`, confirm it came from the npm registry:
 
 ```sh
-npm view xy-deepseek-pet@0.1.0 dependencies
+npm view xy-deepseek-pet@0.1.1 dependencies
 dsh plugin --profile web list xy-deepseek-pet xy-deepseek-desktop
 ```
 
-Published `0.1.0` depends on `xy-deepseek-desktop: 0.1.0`. If pnpm blocked Electron's install script, run `pnpm approve-builds` in the profile directory named by the log, allow `electron`, and reinstall.
+Published `0.1.1` depends on `xy-deepseek-desktop: 0.1.1`. If pnpm blocked Electron's install script, run `pnpm approve-builds` in the profile directory named by the log, allow `electron`, and reinstall.
+
+### GitHub offline packages
+
+Each version's [GitHub Release](https://github.com/hexingyuofficial/xy-deepseek-pet/releases) includes the three npm tarballs and `SHA256SUMS`. Most users should use the Harness command above. Release assets are the fallback for offline installs, pinned versions, and troubleshooting:
+
+```sh
+dsh plugin --profile web add ./xy-deepseek-pet-0.1.1.tgz
+dsh plugin --profile web add ./xy-deepseek-sounds-0.1.1.tgz  # optional
+```
+
+The desktop package is installed automatically by the main plugin. Install `xy-deepseek-desktop-0.1.1.tgz` first only when an offline install reports that the desktop package is missing. Release 0.1.1 is unsigned and unnotarized; standalone `.dmg`, `.msi`, and `.exe` installers are not included yet.
 
 ## Use
 
 - The sidebar toggle only hides the pet.
 - Click a bubble to reply; approve from the same bubble.
 - Right-click to open Harness, reply, open settings, reconnect, or hide the pet.
-- **General settings > Desktop pet** owns theme, scale, motion, chase, throw resistance, full-screen visibility, ZIP import, and the shortcut.
+- **Settings > Plugins > Desktop pet** owns theme, scale, motion, chase, throw resistance, full-screen visibility, ZIP import, and the shortcut.
 
 ## Platform status
 
 - macOS: source build, clean npm-tarball install, and desktop launch are verified.
-- Windows: same Electron source, with automated coverage for launch arguments, PowerShell playback, and build paths. Interactive GUI verification is still pending for 0.1.0.
-- 0.1.0 is unsigned and unnotarized, with no standalone `.dmg`, `.msi`, or `.exe`.
+- Windows: clean/upgrade installation, desktop launch, and Harness health have been exercised; real-device speech input remains unverified.
+- 0.1.1 is unsigned and unnotarized, with no standalone `.dmg`, `.msi`, or `.exe`.
 
 ## Development
 

@@ -1,6 +1,6 @@
 # Packaging and installation
 
-XY DeepSeek Pet 0.1.0 publishes three packages from one pnpm workspace:
+XY DeepSeek Pet 0.1.1 publishes three packages from one pnpm workspace:
 
 | Package | Purpose | Installed directly? |
 | --- | --- | --- |
@@ -62,8 +62,10 @@ Run `pnpm pack` in each public package and install all resulting tarballs into a
 
 Publish in dependency order:
 
-1. `xy-deepseek-desktop@0.1.0`
-2. `xy-deepseek-pet@0.1.0`
-3. `xy-deepseek-sounds@0.1.0`
+1. `xy-deepseek-desktop@0.1.1`
+2. `xy-deepseek-pet@0.1.1`
+3. `xy-deepseek-sounds@0.1.1`
 
-Version 0.1.0 is unsigned and unnotarized. Standalone `.dmg`, `.msi` and `.exe` installers are not part of this release.
+For GitHub distribution, attach the same three `.tgz` files to the matching Release together with `SHA256SUMS`. Keep binaries as Release assets rather than committing them to the repository. README users should follow the registry command; the local-tarball form is an offline fallback.
+
+Version 0.1.1 is unsigned and unnotarized. Standalone `.dmg`, `.msi` and `.exe` installers are not part of this release.
