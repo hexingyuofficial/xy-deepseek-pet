@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/readme/demo.gif" width="220" alt="The whale idles, wanders, gets squashed, dives to think, then surfaces with fries">
+  <img src="docs/readme/demo.gif" width="220" alt="The whale idles, wanders, gets squashed, dives to think, then surfaces with loot">
 </p>
 
 <h1 align="center">XY DeepSeek Pet</h1>
@@ -19,152 +19,156 @@
 </p>
 
 <p align="center">
-  An unofficial open-source desktop pet for DeepSeek Harness.<br>
-  It finishes real work on the desktop, plays with you, and lets you replace the skin.
+  <b>An unofficial, open-source desktop companion and open interaction base for DeepSeek Harness.</b><br>
+  Built on three core pillars: <b>Useful, Playful, and Extensible</b> — ready out of the box, with full freedom for hackers and creators to tinker.
 </p>
 
 <p align="center">
-  <a href="#a-practical-pet">Practical</a> ·
-  <a href="#a-playful-pet">Playful</a> ·
-  <a href="#an-open-pet">Open</a> ·
-  <a href="#install">Install</a> ·
-  <a href="#use">Use</a> ·
-  <a href="#development">Development</a>
+  <a href="#why-we-built-this">Why</a> ·
+  <a href="#useful-effortless-single-screen-workflow">Useful</a> ·
+  <a href="#playful-alive-and-engaging">Playful</a> ·
+  <a href="#extensible-open-for-tinkering">Extensible</a> ·
+  <a href="#installation">Install</a> ·
+  <a href="#usage-and-gestures">Usage</a> ·
+  <a href="#hacker-and-developer-guide">Hacker Guide</a>
 </p>
 
 <p align="center">
   <img src="docs/readme/gallery.png" alt="Preview of idle, sleep, walk, dive, squash, and failure poses" width="720">
 </p>
 
-The Chinese README is the main document. This English page follows the same three ideas in shorter form.
+---
 
-## What it is
+## Why We Built This
 
-A whale that lives on the real Harness task. It dives when work starts, stays underwater during tool calls, and brings the question or approval to a desktop bubble. You can reply to the exact session, tap **Allow once / Reject** in the bubble, or long-press the whale to dictate with the system speech recognizer. When the turn finishes, it surfaces with a different find.
+In short: **Stop switching full-screen windows just to check progress, dictate a follow-up, or click a single approval.**
 
-That is the product: not a browser ornament, and not a skin-only toy.
+When you're deeply focused on arranging audio tracks in a DAW (like REAPER), writing code in an IDE, or editing docs in Feishu/Notion on a single display, having to leave your canvas and switch to a full-screen browser window breaks your creative flow.
 
-| It is | You get |
-| --- | --- |
-| A practical pet | Reply, approve, jump back to the page, and pin a desktop shortcut without hunting for the browser window |
-| A playful pet | Pointer chasing, throw inertia, a real dive, and a different souvenir on the way up |
-| An open pet | Replace the skin, the sounds, and the shortcut icon, including [Petdex](https://petdex.dev/) packs |
+XY Pet lives right beside you:
+- Summon it instantly near your cursor with `Cmd+Shift+P`;
+- Long-press for 0.5s to dictate with your OS native speech engine;
+- Single-click approvals (Allow once / Reject) right in the floating bubble;
+- Dismiss it whenever you're done — your primary workspace never gets interrupted.
 
-The companion only streams public assistant text and activity such as thinking, tool use, questions, and approvals. Hidden `reasoning-delta` content, full transcripts, raw tool arguments, approval reasons, and bridge credentials stay off the desktop bridge.
+| Core Pillar | Your Experience |
+| :--- | :--- |
+| **Useful (Effortless)** | Single-screen freedom, global summon, 0.5s native voice dictation, inline 1-click approvals |
+| **Playful (Alive)** | Real underwater dive to prevent frozen UI, squash feedback, throw & bounce, signature whale call, 0.1% rare chest |
+| **Extensible (Hackable)** | Swap skins (Petdex compatible), swap speech models (`VoiceTranscriber`), swap sound packs, or ask your Agent to configure it |
 
-## A practical pet
+> 🔒 **Local-First Security Guarantees**: Everything runs 100% on your local machine with zero external cloud relays. Inter-process communication binds exclusively to `127.0.0.1` loopback with ephemeral credentials; audio transcription happens strictly on-device and is deleted immediately; hidden reasoning (`reasoning-delta`) and private tokens never reach the desktop; theme packs are data-only sandboxes (images + JSON) that never execute arbitrary scripts.
 
-<p align="center">
-  <img src="docs/readme/useful.png" alt="Reply, approve, open Harness, and create a desktop shortcut" width="820">
-</p>
+---
 
-- Up to three session bubbles. Click to type; `Enter` sends to the exact session.
-- Questions and approvals come to the front. **Allow once / Reject** lives in the bubble.
-- System dictation starts after a `0.5` second long press by default and inserts the transcript into the latest session's reply box for review; double-click opens Harness. Either gesture can independently be assigned to **Record**, **Open latest session details**, **Open Harness**, or **No action**. In double-click recording mode, double-click again or use Send to stop. Dictation never sends automatically.
-- Settings can create a desktop shortcut that starts Harness, the web client, and the pet. The icon can be the bundled whale or your own PNG.
+## Useful (Effortless Single-Screen Workflow)
 
-**Open pet / Close pet** in the sidebar is a real toggle. Closing the pet does not stop Harness.
-
-## A playful pet
+Get routine tasks and approvals done in 5–10 seconds without hunting for browser tabs.
 
 <p align="center">
-  <img src="docs/readme/playful.png" alt="Pointer chase, throw inertia, dive, and completion loot" width="820">
+  <img src="docs/readme/长按语音输入.png" width="400" alt="Long press 0.5s for native system dictation and squash haptic feedback">
+  <img src="docs/readme/打字对话.png" width="400" alt="Floating session bubble and inline typing">
 </p>
 
-- Chase the pointer at a tunable speed. Direct interaction pauses the chase.
-- A fast drag-and-release throws the pet; it bounces only inside the current display.
-- A real DeepSeek dive starts with the turn. Tool work stays underwater.
-- Regular completions share fries, a blindfold, branches, a boot, and other finds. Treasure is a separate `0.1%` jackpot, about once every thousand completions. Themes cannot change that probability.
+- **Out-of-the-Box System Dictation**: Long-press for `0.5` seconds to speak with squashed haptic feedback; speech is transcribed and placed directly into the reply composer for review before sending. Uses OS-native speech recognition (macOS Speech Framework / Windows speech pack) — **zero setup, zero API cost, ultra-low latency**.
+- **Floating Session Bubbles & Approvals**: Keeps up to 3 active session bubbles. When the Agent needs permissions or asks a question, actionable "Allow once / Reject" buttons pop up directly on your desktop.
 
 <p align="center">
-  <img src="docs/readme/dive.png" alt="Idle, dive, think underwater, then surface with a find" width="820">
+  <img src="docs/readme/选择.png" width="460" alt="Inline approval and choice inside the bubble">
+</p>
+
+- **Customizable Shortcuts & Gestures**: Global shortcut `Cmd+Shift+P` is fully rebindable. Long-press and double-click can independently map to "Voice Dictation", "Open Latest Chat", "Open Harness Web GUI", or "No Action".
+- **One-Click Desktop Launcher**: Easily create a desktop shortcut that launches Harness, Web GUI, and the pet companion in one click, with support for custom PNG icons.
+
+---
+
+## Playful (Alive and Engaging)
+
+Not a lifeless widget, but a responsive desktop companion that synchronizes with real Agent lifecycles.
+
+<p align="center">
+  <img src="docs/readme/思考中.png" width="400" alt="Task started: underwater thinking animation">
+  <img src="docs/readme/出错了.png" width="400" alt="Task error: frustrated action with red warning feedback">
 </p>
 
 <p align="center">
-  <img src="docs/readme/loot.png" alt="Completion finds, with treasure highlighted at 0.1 percent" width="820">
+  <img src="docs/readme/思考结束简略提示.png" width="400" alt="Task complete: brief summary bubble floating up">
+  <img src="docs/readme/结束思考动画（十几个之间抽一个）.png" width="400" alt="Completion loot: surfacing with random souvenir">
 </p>
 
-It wanders when idle, naps after ten quiet minutes, and squashes when pressed. Scale is 20% to 200%.
+- **Real Dive to Signal Work (No Frozen Screens)**: When an Agent task starts, the whale dives into the water; during tool execution, it stays underwater working so you always know it's actively processing.
+- **Whale Call & 0.1% Rare Chest Drop**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs (fries, eyepatch, branch, boot); an immutable `0.1%` rare treasure chest is hardcoded into the runtime.
+- **Pointer Chasing & Throw Physics**: Enable pointer chasing to have the whale swim toward your cursor; fling it across the screen and watch it bounce off display boundaries with smooth inertia.
+- **Sleep & Squash Tactility**: Idles into sleep mode after 10 minutes of inactivity; squashes down on press. Freely scalable from 20% to 200%.
 
-## An open pet
+---
 
-<p align="center">
-  <img src="docs/readme/open.png" alt="Petdex skins, native themes, notification sounds, and custom shortcut icons" width="820">
-</p>
+## Extensible (Open for Tinkering)
 
-- Import [Petdex](https://petdex.dev/) v1 / v2 ZIPs from settings. Packs are validated and mapped; they never run scripts.
-- Native themes start from [`examples/minimal-theme`](./examples/minimal-theme/). See [theme authoring](./docs/theme-authoring.md) and [`schemas/theme.schema.json`](./schemas/theme.schema.json).
-- Optional `xy-deepseek-sounds` covers completion, tool success, and tool failure, including short local WAV / MP3 / OGG files. It works without the desktop pet.
-- Shortcut artwork is separate from the pet skin.
+Whether you write code or just love customizing your setup, all components are cleanly decoupled into data contracts.
 
-Themes are image-and-JSON data only. Compatibility notes live in [theme compatibility](./docs/theme-compatibility.md). After install, a Harness agent can switch a local pack or sound when you ask.
+- **Petdex Ecosystem Compatibility**: Import thousands of existing community pet packs from [Petdex](https://petdex.dev/) v1 / v2 by dragging in a ZIP file.
+- **Native 6-State Theme Authoring**: Create custom pixel sprites and animations adhering to [`schemas/theme.schema.json`](./schemas/theme.schema.json) and the [Theme Authoring Guide](./docs/theme-authoring.md).
+- **Pluggable Speech Engine (`VoiceTranscriber`)**: Beyond OS-native speech, implement the standard interface to connect local Whisper (e.g. whisper.cpp / faster-whisper) or custom ASR APIs.
+- **3-Channel Custom Audio**: The standalone `xy-deepseek-sounds` plugin manages completion (whale call), tool success, and tool failure channels (accepts local WAV/MP3/OGG <= 10s).
+- **Agent Automated Self-Configuration**: Harness Agents natively recognize the `xy_pet` tool. Just say: *"Change my pet skin to the pikachu.zip on my desktop"* or *"Update the task complete sound"*.
 
-## Install
+---
 
-DeepSeek Harness `0.1.0-rc.6` and Node.js 22+ are required. Use the `web` profile.
+## Installation
 
-1. If `dsh web` is running, press `Ctrl+C` in that terminal and wait for it to exit.
+Requires DeepSeek Harness `0.1.0-rc.6` and Node.js 22 or higher (on the Harness `web` profile).
+
+1. If `dsh web` is running, press `Ctrl+C` in the terminal to stop it.
 2. Install the plugin:
 
    ```sh
    dsh plugin --profile web add xy-deepseek-pet
    ```
 
-   This pulls `xy-deepseek-desktop`. The first install also downloads the platform Electron runtime, about 120-150 MB.
-3. Start Harness again:
+   The desktop runtime `xy-deepseek-desktop` will be resolved automatically. (First-time installation downloads platform-specific Electron binaries, approx. 120–150 MB).
+
+3. Restart Harness:
 
    ```sh
    dsh web
    ```
 
-Use **Open pet** in the sidebar. Automatic startup is off until you enable it. Do not start another `dsh web` while port 3080 is still taken.
+The sidebar will show "Open desktop pet". Enable "Launch with Harness" under **Settings > Plugins > Desktop pet** for automated launch.
 
-Sounds are optional:
+Sound notifications are optional:
 
 ```sh
 dsh plugin --profile web add xy-deepseek-sounds
 ```
 
-| Package | Result |
-| --- | --- |
-| `xy-deepseek-pet` | Cordis Host bridge, Harness settings, and the Electron companion |
-| `xy-deepseek-sounds` | Completion and tool-result sounds without Electron |
-| Both | Sound controls merge into Settings > Plugins > Desktop pet |
+| Package | What You Get |
+| :--- | :--- |
+| `xy-deepseek-pet` | Cordis Host adapter bridge, Harness settings page, and Electron desktop companion |
+| `xy-deepseek-sounds` | 3-channel completion and tool audio alerts (without installing Electron) |
+| Both installed | Sound controls merge seamlessly into the "Desktop pet" settings panel |
 
-If an install unexpectedly reports `workspace:`, confirm it came from the npm registry:
+---
 
-```sh
-npm view xy-deepseek-pet@0.1.1 dependencies
-dsh plugin --profile web list xy-deepseek-pet xy-deepseek-desktop
-```
+## Usage and Gestures
 
-Published `0.1.1` depends on `xy-deepseek-desktop: 0.1.1`. If pnpm blocked Electron's install script, run `pnpm approve-builds` in the profile directory named by the log, allow `electron`, and reinstall.
+- **Global Summon**: Press `Cmd+Shift+P` to teleport the whale right next to your pointer;
+- **Voice Dictation**: Long-press `0.5` seconds (squashes on press), speak, release to review text, and press Enter to send;
+- **Inline Approvals**: Click floating bubbles to type replies or click "Allow once / Reject";
+- **Context Menu**: Right-click for quick access to Harness, reply, settings, reconnect, or close;
+- **Settings**: Visit **Settings > Plugins > Desktop pet** to customize themes, scale, pointer chasing, fling resistance, gesture bindings, and sound channels.
 
-### GitHub offline packages
+---
 
-Each version's [GitHub Release](https://github.com/hexingyuofficial/xy-deepseek-pet/releases) includes the three npm tarballs and `SHA256SUMS`. Most users should use the Harness command above. Release assets are the fallback for offline installs, pinned versions, and troubleshooting:
+## Platform Support
 
-```sh
-dsh plugin --profile web add ./xy-deepseek-pet-0.1.1.tgz
-dsh plugin --profile web add ./xy-deepseek-sounds-0.1.1.tgz  # optional
-```
+- **macOS**: Fully verified across source builds, npm installation, and complete desktop interaction flow;
+- **Windows**: Shares the same Electron codebase; build, launch, and automated tests ready; interactive voice verification in progress;
+- v0.1.1 is an open-source companion extension without code signing or standalone `.dmg`/`.msi` installers. Please install via standard `dsh plugin`.
 
-The desktop package is installed automatically by the main plugin. Install `xy-deepseek-desktop-0.1.1.tgz` first only when an offline install reports that the desktop package is missing. Release 0.1.1 is unsigned and unnotarized; standalone `.dmg`, `.msi`, and `.exe` installers are not included yet.
+---
 
-## Use
-
-- The sidebar toggle only hides the pet.
-- Click a bubble to reply; approve from the same bubble.
-- Right-click to open Harness, reply, open settings, reconnect, or hide the pet.
-- **Settings > Plugins > Desktop pet** owns theme, scale, motion, chase, throw resistance, full-screen visibility, ZIP import, and the shortcut.
-
-## Platform status
-
-- macOS: source build, clean npm-tarball install, and desktop launch are verified.
-- Windows: clean/upgrade installation, desktop launch, and Harness health have been exercised; real-device speech input remains unverified.
-- 0.1.1 is unsigned and unnotarized, with no standalone `.dmg`, `.msi`, or `.exe`.
-
-## Development
+## Hacker and Developer Guide
 
 ```sh
 pnpm install --frozen-lockfile
@@ -174,15 +178,22 @@ pnpm verify
 ```
 
 ```sh
+# Local desktop companion debugging
 pnpm --filter xy-deepseek-desktop start
 pnpm --filter xy-deepseek-desktop dev -- --demo-error
 pnpm --filter xy-deepseek-desktop dev -- --demo-approval
 ```
 
-See [architecture](./docs/architecture.md), [Cordis integration](./docs/cordis-integration.md), and the [plugin API](./docs/plugin-api.md).
+Technical Architecture and Developer Guides:
+- [Architecture Design](./docs/architecture.md)
+- [Cordis Plugin Integration](./docs/cordis-integration.md)
+- [Plugin and Agent Tool APIs](./docs/plugin-api.md)
+- [Theme Authoring Guide](./docs/theme-authoring.md)
 
-## License and security
+---
 
-[MIT License](./LICENSE). Theme and menu interfaces are data-only. Report vulnerabilities privately via [SECURITY.md](./SECURITY.md).
+## License and Disclaimer
 
-This project is not affiliated with, endorsed by, or sponsored by DeepSeek.
+Licensed under the [MIT License](./LICENSE).
+
+This is an independent open-source community project, not affiliated with, endorsed by, or sponsored by DeepSeek.
