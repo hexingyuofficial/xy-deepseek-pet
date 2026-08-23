@@ -1,6 +1,6 @@
 {
   "name": "xy-deepseek-pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Harness adapter bundle for XY DeepSeek Pet",
   "keywords": ["deepseek", "deepseek-harness", "cordis", "desktop-pet", "electron"],
   "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme",
@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "xy-deepseek-desktop": "workspace:0.1.0",
+    "xy-deepseek-desktop": "workspace:0.1.1",
     "@deepseek-ai/cordis": "^4.0.1",
     "ws": "^8.18.3",
     "zod": "^4.4.3"
@@ -75,7 +75,7 @@
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-settings-general"
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
       ]
     }
   }

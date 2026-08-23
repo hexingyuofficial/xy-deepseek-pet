@@ -5,6 +5,7 @@ const action = z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/).max(96)
 const movementLevel = z.number().int().min(0).max(100)
 const settings = z.object({
   themeId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(64),
+  accentColor: z.string().regex(/^#[0-9a-f]{6}$/i),
   reducedMotion: z.boolean(), bubbleVisible: z.boolean(), walkingEnabled: z.boolean(),
   wanderFrequency: movementLevel, wanderDistance: movementLevel, mouseChaseEnabled: z.boolean(), mouseChaseSpeed: movementLevel,
   flingEnabled: z.boolean(), flingResistance: movementLevel,
@@ -13,7 +14,9 @@ const settings = z.object({
   teleportShortcut: z.string().regex(/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/),
   teleportOpensRecentChat: z.boolean(),
   scale,
-  activationGesture: z.enum(['doubleClick', 'longPress']), locale: z.enum(['system', 'zh-CN', 'en']), autoLaunch: z.boolean(),
+  doubleClickAction: z.enum(['none', 'voice', 'openRecentChat', 'openHarness']), longPressAction: z.enum(['none', 'voice', 'openRecentChat', 'openHarness']),
+  voiceInputEnabled: z.boolean(), voiceProvider: z.literal('system'), voiceLanguage: z.enum(['system', 'zh-CN', 'en-US']),
+  locale: z.enum(['system', 'zh-CN', 'en']), autoLaunch: z.boolean(),
   menuActions: z.array(action).max(6),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
 })
@@ -21,6 +24,7 @@ const theme = z.object({ id: z.string(), name: z.string(), license: z.string(), 
 const stats = z.object({ treasuresFound: z.number().int().min(0) })
 const menuExtension = z.object({ id: action, label: z.object({ 'zh-CN': z.string(), en: z.string() }), invoke: z.enum(['open-client', 'chat', 'tap', 'settings']), order: z.number().optional() })
 const launcherResult = z.object({ displayName: z.string().min(1).max(48), platform: z.enum(['macOS', 'Windows']) })
+const finderQuickActionResult = z.object({ displayName: z.string().min(1).max(48), platform: z.enum(['macOS', 'Windows']) })
 const snapshot = z.object({ config: settings, stats, themes: z.array(theme), menuExtensions: z.array(menuExtension) })
 const strict = (typeSymbol: string, schema: z.ZodType) => ({ mode: 'strict' as const, typeSymbol, schema })
 
@@ -40,4 +44,5 @@ export const PET_REMOTE_DESCRIPTORS = [
     { name: 'fileName', wire: 'fileName', source: 'json' as const, codec: strict('xy-deepseek-pet#launcher:fileName', z.string().max(255)) },
     { name: 'dataBase64', wire: 'dataBase64', source: 'json' as const, codec: strict('xy-deepseek-pet#launcher:data', z.string().max(7_000_000)) },
   ], result: strict('xy-deepseek-pet#launcher:result', launcherResult) },
+  { id: 'xy-deepseek-pet#xyPet/createFinderQuickAction', service: 'xyPet', namespace: 'xyPet', method: 'createFinderQuickAction', invocation: { kind: 'direct' as const }, parameters: [], result: strict('xy-deepseek-pet#finder-quick-action:result', finderQuickActionResult) },
 ] as const

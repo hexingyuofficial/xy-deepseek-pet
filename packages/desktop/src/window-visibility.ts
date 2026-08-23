@@ -8,6 +8,10 @@ export interface MacWindowVisibilityPolicy {
 // skipTransformProcessType is valid only after Electron is already a UIElement app.
 export const MAC_PET_ACTIVATION_POLICY = 'accessory' as const
 
+export function summonWindowActivation(opensRecentChat: boolean): 'active' | 'inactive' {
+  return opensRecentChat ? 'active' : 'inactive'
+}
+
 export function macWindowVisibilityPolicy(showOnFullScreen: boolean, textInputActive = false): MacWindowVisibilityPolicy {
   return {
     visibleOnAllWorkspaces: true,

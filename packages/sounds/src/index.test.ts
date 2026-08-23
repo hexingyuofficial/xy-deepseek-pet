@@ -73,6 +73,24 @@ class RecordingPlayer implements SoundPlayer {
   }
 }
 
+class InterruptiblePlayer implements SoundPlayer {
+  readonly played: string[] = []
+  readonly stopped: string[] = []
+  private release: (() => void) | undefined
+
+  play(asset: PlayableSound): Promise<void> {
+    this.played.push(asset.id)
+    if (asset.channels.includes('turnComplete')) return Promise.resolve()
+    return new Promise((resolve) => { this.release = resolve })
+  }
+
+  stop(): void {
+    this.stopped.push(this.played.at(-1) ?? 'none')
+    this.release?.()
+    this.release = undefined
+  }
+}
+
 describe('sound configuration', () => {
   it('enables completion only and clamps volume by default', () => {
     const config = resolveSoundConfig({ masterVolume: 5, toolFailure: { volume: -1 } })
@@ -145,6 +163,18 @@ describe('sound scheduler', () => {
     expect(player.stopped).toBe(true)
   })
 
+  it('interrupts an active tool sound when the whole turn completes', async () => {
+    const config = resolveSoundConfig({ toolSuccess: { enabled: true }, toolCooldownMs: 0, toolCoalesceMs: 0 })
+    const player = new InterruptiblePlayer()
+    const scheduler = new SoundScheduler(config, player)
+    scheduler.enqueue(request('toolSuccess', 1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    scheduler.enqueue(request('turnComplete', 2))
+    await scheduler.idle()
+    expect(player.stopped).toEqual(['xy-placeholder-tool-success'])
+    expect(player.played).toEqual(['xy-placeholder-tool-success', 'xy-placeholder-complete'])
+  })
+
   it('resolves a custom sound without changing event routing', async () => {
     const custom: PlayableSound = {
       id: 'xy-custom-test', displayName: 'Custom', file: 'custom.wav',
@@ -189,10 +219,10 @@ describe('sound assets and platform launch', () => {
       const library = new SoundLibrary(root)
       await library.initialize()
       const source = join(root, 'source.wav')
-      await writeFile(source, await readFile(new URL('../assets/placeholder-complete.wav', import.meta.url)))
-      const imported = await library.importFile(source, 'My completion / sound')
+      await writeFile(source, await readFile(new URL('../assets/default-complete.wav', import.meta.url)))
+      const imported = await library.importFile(source, '我的完成音 / Complete')
       expect(imported.id).toMatch(/^xy-custom-/)
-      expect(imported.displayName).toBe('My completion  sound')
+      expect(imported.displayName).toBe('我的完成音  Complete')
       expect(library.list()).toHaveLength(1)
       await library.remove(imported.id)
       expect(library.list()).toHaveLength(0)
@@ -206,7 +236,7 @@ describe('sound assets and platform launch', () => {
     try {
       const library = new SoundLibrary(root)
       await library.initialize()
-      const bytes = await readFile(new URL('../assets/placeholder-complete.wav', import.meta.url))
+      const bytes = await readFile(new URL('../assets/default-complete.wav', import.meta.url))
       const imported = await library.importBuffer(bytes, '../my sound.wav')
       expect(imported.displayName).toBe('my sound')
       await expect(library.importBuffer(Buffer.from('not audio'), 'bad.wav')).rejects.toThrow('signature')
@@ -220,7 +250,7 @@ describe('sound assets and platform launch', () => {
 
   it('persists custom selection and falls back after deletion', async () => {
     const root = await mkdtemp(join(tmpdir(), 'xy-sounds-controller-test-'))
-    const bytes = await readFile(new URL('../assets/placeholder-complete.wav', import.meta.url))
+    const bytes = await readFile(new URL('../assets/default-complete.wav', import.meta.url))
     try {
       const controller = await SoundController.create({}, new RecordingPlayer(), root)
       let snapshot = await controller.importSound(bytes, 'custom.wav')

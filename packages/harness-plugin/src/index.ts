@@ -19,10 +19,12 @@ import {
   petSettingsUrl,
   boundedStatusText,
   reducePetEvent,
+  stripThinkBlocks,
   type BridgeClientMessage,
   type BridgeServerMessage,
   type HarnessPetEvent,
   type PetActivityKind,
+  type PetChatImage,
   type PetQuestionAnswer,
   type PetQuestionItem,
   type PetSessionActivity,
@@ -33,12 +35,14 @@ import { PetSettingsGateway } from './gateway.js'
 import { PetMenuRegistry } from './menu-registry.js'
 import { PetSettingsController, repositoryRootFromDesktopEntry } from './settings.js'
 import { registerPetAgentCapabilities } from './agent-capabilities.js'
-import { createDesktopLauncher, type LauncherIconId } from './desktop-launcher.js'
+import { createDesktopLauncher, launcherNodeExecutable, type LauncherIconId } from './desktop-launcher.js'
+import { installFileQuickAction } from './finder-quick-action.js'
+import { cleanElectronRuntimeEnv } from './electron-env.js'
 
 export const name = 'xy-deepseek-pet'
 export const inject = ['agents', 'apiProxy', 'approval', 'commands', 'systemPrompt', 'tools']
 
-const MAX_WIRE_BYTES = 64 * 1024
+const MAX_WIRE_BYTES = 12 * 1024 * 1024
 const REACTION_MS = 2_800
 const COMPLETION_SETTLE_MS = 500
 const MAX_SESSION_ACTIVITIES = 16
@@ -46,7 +50,11 @@ const MAX_ACTIVITY_TEXT = 8_000
 
 function boundedActivityText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
-  const normalized = value.replace(/\s+/g, ' ').trim()
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\t ]+\n/g, '\n')
+    .replace(/\n[\t ]+/g, '\n')
+    .trim()
   return normalized ? normalized.slice(0, MAX_ACTIVITY_TEXT) : undefined
 }
 
@@ -101,6 +109,19 @@ interface HarnessApiFrame {
 }
 
 interface HarnessApiProxy {
+  sessions: {
+    prompt(request: {
+      rpcId: string
+      payload: {
+        sessionId: string
+        mode: 'queue' | 'steer'
+        content: Array<{ type: 'text'; text: string } | PetChatImage>
+      }
+    }): Promise<{
+      rpcId: string
+      result: { ok: true; value: { accepted: true } } | { ok: false; error: { message: string } }
+    }>
+  }
   events: {
     mux(request: { rpcId: string; payload: Record<string, never> }, signal: AbortSignal): AsyncIterable<HarnessApiFrame>
   }
@@ -196,9 +217,9 @@ function visibleAssistantText(event: SessionEvent): string | undefined {
   const text = event.data.message.content
     .filter((block): block is Extract<(typeof event.data.message.content)[number], { type: 'text' }> => block.type === 'text')
     .map((block) => block.text)
-    .join(' ')
+    .join('\n\n')
     .trim()
-  return boundedActivityText(text)
+  return boundedActivityText(stripThinkBlocks(text))
 }
 
 function visibleAssistantChunk(event: SessionEvent): string | undefined {
@@ -235,6 +256,9 @@ function approvalAuditEvent(event: SessionEvent): ApprovalAuditEvent | undefined
   }
   return undefined
 }
+
+const RESOLVED_APPROVAL_TTL_MS = 10 * 60 * 1_000
+const MAX_RESOLVED_APPROVALS = 256
 
 function visibleSessionTitle(event: SessionEvent): string | undefined {
   const candidate = event as unknown as { type?: unknown; data?: { title?: unknown } }
@@ -288,6 +312,7 @@ export class HarnessPetRuntime {
   private readonly pendingQuestionCalls = new Map<string, Set<string>>()
   private readonly pendingApprovals = new Map<string, Map<string, string>>()
   private readonly pendingApprovalAnswers = new Map<string, PendingApprovalAnswer>()
+  private readonly resolvedApprovals = new Map<string, number>()
   private readonly pendingQuestionAnswers = new Map<string, PendingQuestionAnswer>()
   private readonly sessionActivities = new Map<string, PetSessionActivity[]>()
   private readonly pendingCompletions = new Map<string, PendingCompletion>()
@@ -346,6 +371,7 @@ export class HarnessPetRuntime {
     await this.apiEventsTask
     this.apiEventsTask = undefined
     this.pendingApprovalAnswers.clear()
+    this.resolvedApprovals.clear()
     this.pendingQuestionAnswers.clear()
     this.desktop?.kill()
     this.desktop = undefined
@@ -373,7 +399,7 @@ export class HarnessPetRuntime {
     if (!address || typeof address === 'string') return false
     const child = spawn(launch.command, launch.args, {
       stdio: ['pipe', 'ignore', 'pipe'],
-      env: { ...process.env, XY_DEEPSEEK_PET_CHILD: '1' },
+      env: cleanElectronRuntimeEnv(process.env, { XY_DEEPSEEK_PET_CHILD: '1' }),
     })
     let stderr = ''
     child.stderr?.setEncoding('utf8')
@@ -459,6 +485,11 @@ export class HarnessPetRuntime {
     }
   }
 
+  createFinderQuickAction(): { displayName: string; platform: 'macOS' | 'Windows' } {
+    const packageRoot = resolve(import.meta.dirname, '..')
+    return installFileQuickAction(packageRoot, launcherNodeExecutable())
+  }
+
   async importThemeArchive(path: string, signal?: AbortSignal): Promise<string> {
     const archivePath = resolve(path)
     if (extname(archivePath).toLowerCase() !== '.zip') throw new Error('Pet theme must be a ZIP file')
@@ -488,6 +519,7 @@ export class HarnessPetRuntime {
     this.activeToolCalls.delete(String(agent.id))
     this.pendingQuestionCalls.delete(String(agent.id))
     this.pendingApprovals.delete(String(agent.id))
+    this.clearResolvedApprovals(String(agent.id))
     this.sessionActivities.delete(String(agent.id))
     if (this.selected === agent) this.selectLatest()
     this.publishAggregate()
@@ -497,6 +529,7 @@ export class HarnessPetRuntime {
     if (!this.isRoot(agent)) return
     this.touch(agent)
     this.selected = agent
+    if (this.reconcileApprovalAudit(agent.session)) this.publishCurrentActivity(String(agent.id), Date.now())
     if (status === 'running') {
       this.cancelPendingCompletion(String(agent.id))
       this.cancelReaction()
@@ -520,6 +553,7 @@ export class HarnessPetRuntime {
     this.touch(agent)
     this.selected = agent
     const sessionId = String(session.id)
+    if (this.reconcileApprovalAudit(session)) this.publishCurrentActivity(sessionId, event.time)
     const title = visibleSessionTitle(event)
     if (title) {
       this.updateSession(sessionId, { title, updatedAt: event.time })
@@ -532,6 +566,7 @@ export class HarnessPetRuntime {
     }
     const approval = approvalAuditEvent(event)
     if (approval?.type === 'approval/asked') {
+      if (this.wasApprovalResolved(sessionId, approval.data.id)) return
       const approvals = this.pendingApprovals.get(sessionId) ?? new Map<string, string>()
       approvals.set(approval.data.id, approval.data.toolName)
       this.pendingApprovals.set(sessionId, approvals)
@@ -539,6 +574,7 @@ export class HarnessPetRuntime {
       return
     }
     if (approval?.type === 'approval/decided') {
+      this.rememberResolvedApproval(sessionId, approval.data.id)
       this.pendingApprovals.get(sessionId)?.delete(approval.data.id)
       this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === approval.data.id)
       this.publishCurrentActivity(sessionId, approval.time)
@@ -600,8 +636,9 @@ export class HarnessPetRuntime {
         if (!delta) break
         const stream = `${this.assistantStreams.get(sessionId) ?? ''}${delta}`.slice(0, MAX_ACTIVITY_TEXT)
         this.assistantStreams.set(sessionId, stream)
-        const activityText = boundedActivityText(stream)
-        const text = boundedStatusText(stream)
+        const visibleStream = stripThinkBlocks(stream)
+        const activityText = boundedActivityText(visibleStream)
+        const text = boundedStatusText(visibleStream)
         if (!text || !activityText) break
         this.lastAssistantText.set(sessionId, text)
         this.upsertAssistantActivity(sessionId, activityText, event.time)
@@ -705,6 +742,7 @@ export class HarnessPetRuntime {
     if (payload.type === 'approval/requested') {
       if (typeof payload.sessionId !== 'string' || typeof payload.approvalId !== 'string') return
       const sessionId = payload.sessionId
+      if (this.wasApprovalResolved(sessionId, payload.approvalId)) return
       const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId)
       if (!agent || !this.isRoot(agent)) return
       const requestId = String(frame.rpcId)
@@ -724,6 +762,7 @@ export class HarnessPetRuntime {
     if (payload.type === 'approval/resolved') {
       if (typeof payload.sessionId !== 'string' || typeof payload.approvalId !== 'string') return
       const sessionId = payload.sessionId
+      this.rememberResolvedApproval(sessionId, payload.approvalId)
       this.pendingApprovals.get(sessionId)?.delete(payload.approvalId)
       this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === payload.approvalId)
       this.publishCurrentActivity(sessionId, Date.now())
@@ -822,6 +861,7 @@ export class HarnessPetRuntime {
         },
       })
       if (!receipt.accepted) throw new Error('not pending')
+      this.rememberResolvedApproval(pending.sessionId, pending.approvalId)
       this.clearApprovalAnswers((entry) => entry.requestId === pending.requestId)
       this.pendingApprovals.get(pending.sessionId)?.delete(String(pending.approvalId))
       this.publishCurrentActivity(pending.sessionId, Date.now())
@@ -836,6 +876,62 @@ export class HarnessPetRuntime {
   ): void {
     for (const pending of [...this.pendingApprovalAnswers.values()]) {
       if (predicate(pending)) this.pendingApprovalAnswers.delete(pending.requestId)
+    }
+  }
+
+  private reconcileApprovalAudit(session: Session): boolean {
+    const sessionId = String(session.id)
+    const pendingIds = new Set(this.pendingApprovals.get(sessionId)?.keys() ?? [])
+    for (const pending of this.pendingApprovalAnswers.values()) {
+      if (pending.sessionId === sessionId) pendingIds.add(pending.approvalId)
+    }
+    if (pendingIds.size === 0) return false
+
+    const decided = new Set<string>()
+    for (const event of session.events) {
+      const approval = approvalAuditEvent(event)
+      if (approval?.type === 'approval/decided' && pendingIds.has(approval.data.id)) decided.add(approval.data.id)
+    }
+    if (decided.size === 0) return false
+
+    const approvals = this.pendingApprovals.get(sessionId)
+    for (const approvalId of decided) {
+      this.rememberResolvedApproval(sessionId, approvalId)
+      approvals?.delete(approvalId)
+    }
+    if (approvals?.size === 0) this.pendingApprovals.delete(sessionId)
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && decided.has(pending.approvalId))
+    return true
+  }
+
+  private approvalKey(sessionId: string, approvalId: string): string {
+    return `${sessionId}\u0000${approvalId}`
+  }
+
+  private rememberResolvedApproval(sessionId: string, approvalId: string, time = Date.now()): void {
+    const key = this.approvalKey(sessionId, approvalId)
+    this.resolvedApprovals.delete(key)
+    this.resolvedApprovals.set(key, time)
+    while (this.resolvedApprovals.size > MAX_RESOLVED_APPROVALS) {
+      const oldest = this.resolvedApprovals.keys().next().value
+      if (oldest === undefined) break
+      this.resolvedApprovals.delete(oldest)
+    }
+  }
+
+  private wasApprovalResolved(sessionId: string, approvalId: string, now = Date.now()): boolean {
+    const key = this.approvalKey(sessionId, approvalId)
+    const resolvedAt = this.resolvedApprovals.get(key)
+    if (resolvedAt === undefined) return false
+    if (now - resolvedAt <= RESOLVED_APPROVAL_TTL_MS) return true
+    this.resolvedApprovals.delete(key)
+    return false
+  }
+
+  private clearResolvedApprovals(sessionId: string): void {
+    const prefix = `${sessionId}\u0000`
+    for (const key of this.resolvedApprovals.keys()) {
+      if (key.startsWith(prefix)) this.resolvedApprovals.delete(key)
     }
   }
 
@@ -871,7 +967,7 @@ export class HarnessPetRuntime {
         this.send(socket, { type: 'snapshot', snapshot: this.snapshot })
         return
       }
-      if (value.type === 'chat') this.submitChat(socket, value.requestId, value.text, value.sessionId)
+      if (value.type === 'chat') void this.submitChat(socket, value.requestId, value.text, value.sessionId, value.images)
       if (value.type === 'approval-decision') void this.decideApproval(socket, value)
       if (value.type === 'question-answer') void this.answerQuestion(socket, value)
       if (value.type === 'focus') this.openDesktop()
@@ -888,24 +984,45 @@ export class HarnessPetRuntime {
     })
   }
 
-  private submitChat(socket: WebSocket, requestId: string, text: string, sessionId?: string): void {
+  private async submitChat(socket: WebSocket, requestId: string, text: string, sessionId?: string, images: PetChatImage[] = []): Promise<void> {
     const agent = sessionId
       ? this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId)
       : this.selectLatest()
     if (agent && !this.isRoot(agent)) {
-      return this.send(socket, { type: 'chat-result', requestId, ok: false, error: 'The selected session is not eligible.' })
+      this.send(socket, { type: 'chat-result', requestId, ok: false, error: 'The selected session is not eligible.' })
+      return
     }
-    if (!agent) return this.send(socket, { type: 'chat-result', requestId, ok: false, error: 'No active Harness session.' })
+    if (!agent) {
+      this.send(socket, { type: 'chat-result', requestId, ok: false, error: 'No active Harness session.' })
+      return
+    }
     try {
-      agent.followup(createUserMessage({
-        content: [{ type: 'text', text: text.trim() }],
-        source: { kind: 'user' },
-      }))
+      if (images.length) {
+        const apiProxy = (this.ctx as unknown as { apiProxy?: HarnessApiProxy }).apiProxy
+        if (!apiProxy) throw new Error('official API Proxy is unavailable')
+        const content: Array<{ type: 'text'; text: string } | PetChatImage> = [
+          ...(text.trim() ? [{ type: 'text' as const, text: text.trim() }] : []),
+          ...images,
+        ]
+        const response = await apiProxy.sessions.prompt({
+          rpcId: randomUUID(),
+          payload: { sessionId: String(agent.id), mode: 'queue', content },
+        })
+        if (!response.result.ok) throw new Error(response.result.error.message)
+      } else {
+        agent.followup(createUserMessage({
+          content: [{ type: 'text', text: text.trim() }],
+          source: { kind: 'user' },
+        }))
+      }
       this.touch(agent)
       this.acknowledge(String(agent.id))
       this.send(socket, { type: 'chat-result', requestId, ok: true })
-    } catch {
-      this.send(socket, { type: 'chat-result', requestId, ok: false, error: 'Harness rejected the message.' })
+    } catch (error) {
+      this.send(socket, {
+        type: 'chat-result', requestId, ok: false,
+        error: error instanceof Error ? error.message : 'Harness rejected the message.',
+      })
     }
   }
 

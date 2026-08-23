@@ -19,6 +19,7 @@ function runtimeFixture() {
   const apiProxy = {
     events: { mux: vi.fn(async function* () {}) },
     respond: vi.fn(async () => ({ accepted: true as const })),
+    sessions: { prompt: vi.fn(async (request) => ({ rpcId: request.rpcId, result: { ok: true as const, value: { accepted: true as const } } })) },
   }
   const ctx = {
     logger: () => ({ info: vi.fn(), warn: vi.fn() }),
@@ -290,6 +291,28 @@ describe('Harness pet session summaries', () => {
     expect(JSON.stringify((runtime as any).snapshot)).not.toContain('hidden chain of thought')
   })
 
+  it('never surfaces literal think blocks from public text chunks or messages', () => {
+    const { runtime, session } = runtimeFixture()
+    runtime.onSessionEvent(session as never, {
+      type: 'turn/start', time: 22, data: { turn: 1 },
+    } as never)
+    runtime.onSessionEvent(session as never, {
+      type: 'assistant/chunk', time: 23, data: { chunk: { type: 'text-delta', index: 0, text: '<think>private' } },
+    } as never)
+    expect(JSON.stringify((runtime as any).snapshot)).not.toContain('private')
+    runtime.onSessionEvent(session as never, {
+      type: 'assistant/chunk', time: 24, data: { chunk: { type: 'text-delta', index: 0, text: '</think>收到' } },
+    } as never)
+    expect((runtime as any).snapshot.sessions[0].text).toBe('收到')
+    expect(JSON.stringify((runtime as any).snapshot)).not.toContain('<think>')
+
+    runtime.onSessionEvent(session as never, {
+      type: 'assistant/message', time: 25, data: { message: { content: [{ type: 'text', text: '<think>also private</think>最终回答' }] } },
+    } as never)
+    expect((runtime as any).snapshot.sessions[0].text).toBe('最终回答')
+    expect(JSON.stringify((runtime as any).snapshot)).not.toContain('also private')
+  })
+
   it('builds a bounded public activity waterfall and coalesces streamed assistant text', async () => {
     vi.useFakeTimers()
     const { runtime, session } = runtimeFixture()
@@ -323,6 +346,44 @@ describe('Harness pet session summaries', () => {
     ])
     expect(JSON.stringify(activities)).not.toContain('secret')
     expect(JSON.stringify(activities)).not.toContain('private result')
+  })
+
+  it('preserves Markdown line structure in detailed assistant activity', () => {
+    const { runtime, session } = runtimeFixture()
+    runtime.onSessionEvent(session as never, {
+      type: 'turn/start', time: 56, data: { turn: 4 },
+    } as never)
+    runtime.onSessionEvent(session as never, {
+      type: 'assistant/chunk', time: 57, data: {
+        chunk: { type: 'text-delta', index: 0, text: '### 结果\n\n| 项目 | 状态 |\n| --- | --- |\n| 桌宠 | 完成 |' },
+      },
+    } as never)
+
+    const summary = (runtime as any).snapshot.sessions[0]
+    expect(summary.activities.at(-1).text).toBe('### 结果\n\n| 项目 | 状态 |\n| --- | --- |\n| 桌宠 | 完成 |')
+    expect(summary.text).toBe('### 结果 | 项目 | 状态 | | --- | --- | | 桌宠 | 完成 |')
+  })
+
+  it('submits image replies through the official session prompt API', async () => {
+    const { runtime, agent, apiProxy } = runtimeFixture()
+    const socket = { send: vi.fn() }
+    await (runtime as any).submitChat(socket, 'chat-image', '看看这张图', agent.id, [
+      { name: 'screen.png', mediaType: 'image/png', data: 'aGVsbG8=' },
+    ])
+
+    expect(agent.followup).not.toHaveBeenCalled()
+    expect(apiProxy.sessions.prompt).toHaveBeenCalledWith({
+      rpcId: expect.any(String),
+      payload: {
+        sessionId: agent.id,
+        mode: 'queue',
+        content: [
+          { type: 'text', text: '看看这张图' },
+          { name: 'screen.png', mediaType: 'image/png', data: 'aGVsbG8=' },
+        ],
+      },
+    })
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"ok":true'))
   })
 
   it('shows the newest public assistant segment after tools in the compact summary', () => {
@@ -583,6 +644,64 @@ describe('Harness pet session summaries', () => {
     expect((runtime as any).snapshot.sessions[0].approval).toBeUndefined()
     expect((runtime as any).pendingApprovalAnswers.size).toBe(0)
     expect(apiProxy.respond).not.toHaveBeenCalled()
+  })
+
+  it('reconciles a resolved approval from the durable session log after a missed Web event', () => {
+    const { runtime, agent } = runtimeFixture()
+    ;(runtime as any).onApiFrame({
+      rpcId: 'rpc-missed-resolution',
+      payload: { type: 'approval/requested', sessionId: agent.id, approvalId: 'approval-resolved-in-log', toolName: 'bash' },
+    })
+    expect((runtime as any).snapshot.sessions[0].approval).toBeDefined()
+
+    agent.session.events.push({
+      type: 'approval/decided',
+      time: Date.now(),
+      data: { id: 'approval-resolved-in-log', outcome: 'allowed-once' },
+    })
+    runtime.onAgentStatus(agent as never, 'running')
+
+    expect((runtime as any).pendingApprovalAnswers.size).toBe(0)
+    expect((runtime as any).pendingApprovals.get(agent.id)?.size ?? 0).toBe(0)
+    expect((runtime as any).snapshot.sessions[0].approval).toBeUndefined()
+    expect((runtime as any).resolvedApprovals.size).toBe(1)
+  })
+
+  it('does not revive an approval when requested events arrive after Web resolution', () => {
+    const { runtime, agent } = runtimeFixture()
+    ;(runtime as any).onApiFrame({
+      rpcId: 'resolved-first',
+      payload: { type: 'approval/resolved', sessionId: agent.id, approvalId: 'approval-raced', outcome: 'allowed-once' },
+    })
+    ;(runtime as any).onApiFrame({
+      rpcId: 'requested-late',
+      payload: { type: 'approval/requested', sessionId: agent.id, approvalId: 'approval-raced', toolName: 'bash' },
+    })
+    runtime.onSessionEvent(agent.session as never, {
+      type: 'approval/asked',
+      time: Date.now(),
+      data: { id: 'approval-raced', toolName: 'bash' },
+    } as never)
+
+    expect((runtime as any).snapshot.sessions[0].approval).toBeUndefined()
+    expect((runtime as any).pendingApprovalAnswers.size).toBe(0)
+    expect((runtime as any).pendingApprovals.get(agent.id)?.size ?? 0).toBe(0)
+  })
+
+  it('does not revive an approval when the official request arrives after its audit decision', () => {
+    const { runtime, agent } = runtimeFixture()
+    runtime.onSessionEvent(agent.session as never, {
+      type: 'approval/decided',
+      time: Date.now(),
+      data: { id: 'approval-audit-raced', outcome: 'allowed-once' },
+    } as never)
+    ;(runtime as any).onApiFrame({
+      rpcId: 'requested-after-audit',
+      payload: { type: 'approval/requested', sessionId: agent.id, approvalId: 'approval-audit-raced', toolName: 'write_file' },
+    })
+
+    expect((runtime as any).snapshot.sessions[0].approval).toBeUndefined()
+    expect((runtime as any).pendingApprovalAnswers.size).toBe(0)
   })
 
   it('mirrors official questions and submits the answer through the official request', async () => {

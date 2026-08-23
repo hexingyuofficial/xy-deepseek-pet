@@ -46,6 +46,11 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 
+// src/index.ts
+import { appendFile, mkdir as mkdir3 } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
+import { dirname, join as join3 } from "node:path";
+
 // src/controller.ts
 import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -56,20 +61,20 @@ import { fileURLToPath } from "node:url";
 var BUILTIN_SOUNDS = [
   {
     id: "xy-placeholder-complete",
-    displayName: "Placeholder Complete",
-    file: "placeholder-complete.wav",
+    displayName: "XY Complete",
+    file: "default-complete.wav",
     channels: ["turnComplete"]
   },
   {
     id: "xy-placeholder-tool-success",
-    displayName: "Placeholder Tool Success",
-    file: "placeholder-tool-success.wav",
+    displayName: "XY Tool Success",
+    file: "default-tool-success.wav",
     channels: ["toolSuccess"]
   },
   {
     id: "xy-placeholder-tool-failure",
-    displayName: "Placeholder Tool Failure",
-    file: "placeholder-tool-failure.wav",
+    displayName: "XY Tool Failure",
+    file: "default-tool-failure.wav",
     channels: ["toolFailure"]
   }
 ];
@@ -131,7 +136,8 @@ function isInside(root, candidate) {
   return relativePath === "" || !isAbsolute(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`);
 }
 function safeDisplayName(value) {
-  return value.replace(/[^a-zA-Z0-9 _.-]+/g, "").trim().slice(0, 80) || "Imported sound";
+  const cleaned = value.normalize("NFC").replace(/[\p{Cc}\p{Cf}\\/]+/gu, "").trim();
+  return [...cleaned].slice(0, 80).join("") || "Imported sound";
 }
 function hasSignature(buffer, extension) {
   if (extension === ".wav") return buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WAVE";
@@ -259,6 +265,7 @@ var PlatformSoundPlayer = class {
       }
       return Promise.resolve();
     }
+    this.logger.debug?.(`sound playback starting: asset=${asset.id} volume=${Math.min(1, Math.max(0, volume)).toFixed(2)}`);
     return new Promise((resolvePlayback) => {
       const child = spawn(launch.command, launch.args, {
         shell: false,
@@ -267,16 +274,17 @@ var PlatformSoundPlayer = class {
       });
       this.children.add(child);
       let finished = false;
-      const finish = () => {
+      const finish = (detail) => {
         if (finished) return;
         finished = true;
         this.children.delete(child);
+        this.logger.debug?.(`sound playback finished: asset=${asset.id} ${detail}`);
         resolvePlayback();
       };
-      child.once("exit", finish);
+      child.once("exit", (code, signal) => finish(`code=${code ?? "null"} signal=${signal ?? "none"}`));
       child.once("error", (error) => {
         this.logger.warn?.(`sound playback failed: ${String(error)}`);
-        finish();
+        finish("outcome=spawn-error");
       });
     });
   }
@@ -359,6 +367,7 @@ var SoundScheduler = class {
   drainPromise;
   waitTimer;
   waitResolver;
+  active;
   stopped = false;
   enqueue(request) {
     if (this.stopped || this.config.masterMute) return false;
@@ -374,6 +383,9 @@ var SoundScheduler = class {
       this.queue = this.queue.filter(
         (queued) => queued.request.sessionId !== request.sessionId || queued.request.turn !== request.turn
       );
+      if (this.active?.request.channel !== void 0 && this.active.request.channel !== "turnComplete") {
+        this.player.stop();
+      }
     }
     this.queue.push({
       request,
@@ -414,7 +426,9 @@ var SoundScheduler = class {
         if (this.stopped) return;
         this.lastToolStartedAt = this.now();
       }
+      this.active = next;
       await this.player.play(next.asset, next.volume).catch(() => void 0);
+      if (this.active === next) this.active = void 0;
     }
   }
   wait(delayMs) {
@@ -4601,7 +4615,7 @@ function registerSoundAgentCapabilities(ctx, controller) {
   ctx.systemPrompt.section({
     name: "tool:xy-deepseek-sounds",
     order: 146,
-    text: "XY DeepSeek Sounds is installed. Use xy_pet_sounds when the user asks to inspect, enable, disable, select, or import task-complete/tool-success/tool-failure notification sounds. Import only a local audio file the user explicitly selected; sound settings also appear in Harness General settings."
+    text: "XY DeepSeek Sounds is installed. Use xy_pet_sounds when the user asks to inspect, enable, disable, select, or import task-complete/tool-success/tool-failure notification sounds. Import only a local audio file the user explicitly selected; sound settings also appear under Harness Settings > Plugins > Desktop pet."
   });
   ctx.tools.register(defineTool({
     name: "xy_pet_sounds",
@@ -4672,6 +4686,12 @@ function registerSoundAgentCapabilities(ctx, controller) {
 // src/index.ts
 var name = "xy-deepseek-sounds";
 var inject = ["agents", "systemPrompt", "tools"];
+function soundDiagnostic(message) {
+  const path = join3(homedir2(), ".xy-deepseek-pet", "sound-diagnostic.log");
+  const line = `${(/* @__PURE__ */ new Date()).toISOString()} ${message.replace(/[\r\n]+/g, " ").slice(0, 500)}
+`;
+  void mkdir3(dirname(path), { recursive: true, mode: 448 }).then(() => appendFile(path, line, { encoding: "utf8", mode: 384 })).catch(() => void 0);
+}
 var SoundNotificationRuntime = class _SoundNotificationRuntime {
   constructor(controller) {
     this.controller = controller;
@@ -4694,18 +4714,35 @@ var SoundNotificationRuntime = class _SoundNotificationRuntime {
 };
 async function apply(ctx, config = {}) {
   const logger = ctx.logger("xy-deepseek-sounds");
-  const controller = await SoundController.create(config, new PlatformSoundPlayer(process.platform, logger));
+  const diagnosticLogger = {
+    debug(message) {
+      logger.debug?.(message);
+      soundDiagnostic(message);
+    },
+    warn(message) {
+      logger.warn(message);
+      soundDiagnostic(`warning: ${message}`);
+    }
+  };
+  const controller = await SoundController.create(config, new PlatformSoundPlayer(process.platform, diagnosticLogger));
   registerSoundAgentCapabilities(ctx, controller);
   new SoundSettingsGateway(ctx, controller);
   ctx.on("session/event", (session, event) => {
     if (controller.config.rootSessionsOnly) {
       const agent = ctx.agents.get(session.id);
-      if (!agent || !ctx.agents.roots().includes(agent)) return;
+      if (!agent || !ctx.agents.roots().includes(agent)) {
+        if (event.type === "turn/end") soundDiagnostic(`completion ignored reason=non-root turn=${event.data.turn} outcome=${event.data.reason.kind}`);
+        return;
+      }
     }
-    controller.onSessionEvent(session, event);
+    const accepted = controller.onSessionEvent(session, event);
+    if (event.type === "turn/end") {
+      soundDiagnostic(`completion event turn=${event.data.turn} outcome=${event.data.reason.kind} accepted=${accepted}`);
+    }
   });
   ctx.effect(() => () => controller.stop(), "xy-deepseek-sounds runtime");
   logger.info("sound notifications ready");
+  soundDiagnostic(`runtime ready platform=${process.platform} muted=${controller.config.masterMute} completeEnabled=${controller.config.channels.turnComplete.enabled} rootOnly=${controller.config.rootSessionsOnly}`);
 }
 export {
   BUILTIN_SOUNDS,

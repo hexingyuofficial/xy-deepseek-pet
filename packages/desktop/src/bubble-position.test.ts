@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bubbleDragLimits, constrainBubbleOffset, petPlacementAdjusted } from './bubble-position.js'
+import { bubbleDragLimits, bubbleSideForCenter, constrainBubbleOffset, petPlacementAdjusted } from './bubble-position.js'
 
 describe('bubble position', () => {
   const baseRect = { left: 100, top: 80, right: 380, bottom: 200 }
@@ -9,6 +9,14 @@ describe('bubble position', () => {
   it('keeps a nearby manual offset unchanged', () => {
     expect(constrainBubbleOffset({ x: 36, y: -24 }, baseRect, viewport, maximum))
       .toEqual({ x: 36, y: -24 })
+  })
+
+  it('selects all four pet-relative anchor sides from a dragged bubble center', () => {
+    const pet = { left: 100, top: 100, right: 300, bottom: 300 }
+    expect(bubbleSideForCenter({ x: 200, y: 40 }, pet)).toBe('top')
+    expect(bubbleSideForCenter({ x: 360, y: 200 }, pet)).toBe('right')
+    expect(bubbleSideForCenter({ x: 200, y: 360 }, pet)).toBe('bottom')
+    expect(bubbleSideForCenter({ x: 40, y: 200 }, pet)).toBe('left')
   })
 
   it('keeps the bubble within its pet-relative range', () => {
@@ -32,6 +40,24 @@ describe('bubble position', () => {
       viewport,
       maximum,
     )).toEqual({ x: 12, y: 2 })
+  })
+
+  it('keeps the complete bubble visible when the nearby range cannot reach the viewport', () => {
+    expect(constrainBubbleOffset(
+      { x: 0, y: 0 },
+      { left: 500, top: 80, right: 808, bottom: 220 },
+      viewport,
+      maximum,
+    )).toEqual({ x: -176, y: 0 })
+  })
+
+  it('centers an oversized bubble instead of producing an unstable edge compromise', () => {
+    expect(constrainBubbleOffset(
+      { x: 100, y: 100 },
+      { left: 20, top: 40, right: 700, bottom: 560 },
+      viewport,
+      maximum,
+    )).toEqual({ x: -40, y: -60 })
   })
 
   it('scales the allowed range but keeps practical limits', () => {

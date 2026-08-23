@@ -11,20 +11,20 @@ export interface SoundAsset {
 export const BUILTIN_SOUNDS: readonly SoundAsset[] = [
   {
     id: 'xy-placeholder-complete',
-    displayName: 'Placeholder Complete',
-    file: 'placeholder-complete.wav',
+    displayName: 'XY Complete',
+    file: 'default-complete.wav',
     channels: ['turnComplete'],
   },
   {
     id: 'xy-placeholder-tool-success',
-    displayName: 'Placeholder Tool Success',
-    file: 'placeholder-tool-success.wav',
+    displayName: 'XY Tool Success',
+    file: 'default-tool-success.wav',
     channels: ['toolSuccess'],
   },
   {
     id: 'xy-placeholder-tool-failure',
-    displayName: 'Placeholder Tool Failure',
-    file: 'placeholder-tool-failure.wav',
+    displayName: 'XY Tool Failure',
+    file: 'default-tool-failure.wav',
     channels: ['toolFailure'],
   },
 ]

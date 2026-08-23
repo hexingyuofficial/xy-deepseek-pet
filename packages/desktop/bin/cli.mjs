@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { cleanElectronRuntimeEnv } from './electron-env.mjs'
 
 let electron
 try {
@@ -23,6 +24,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const child = spawn(electron, [resolve(packageRoot, 'dist/main.js'), ...process.argv.slice(2)], {
   stdio: 'inherit',
   windowsHide: false,
+  env: cleanElectronRuntimeEnv(),
 })
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

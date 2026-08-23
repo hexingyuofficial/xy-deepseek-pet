@@ -1,6 +1,6 @@
 {
   "name": "xy-deepseek-sounds",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sound notifications for DeepSeek Harness",
   "keywords": ["deepseek", "deepseek-harness", "cordis", "notifications", "sounds"],
   "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme",
@@ -27,8 +27,7 @@
     "README.md"
   ],
   "scripts": {
-    "assets": "node scripts/generate-placeholder-sounds.mjs",
-    "build": "pnpm assets && tsc -p tsconfig.json && node scripts/build.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/build.mjs",
     "test": "vitest run"
   },
   "dependencies": {

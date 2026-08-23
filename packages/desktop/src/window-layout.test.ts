@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { clampWindowPosition, resolvePetOffset, resolvePetPlacement, selectPetWindowDock, selectWindowDock } from './window-layout.js'
+import { clampWindowPosition, companionWindowSize, preferredPetOffsetForBubble, resolvePetOffset, resolvePetPlacement, selectPetWindowDock, selectWindowDock } from './window-layout.js'
 
 const workArea = { x: 0, y: 0, width: 1440, height: 900 }
 
 describe('desktop window dock layout', () => {
+  it('reserves enough renderer space for the pet and a full details bubble', () => {
+    expect(companionWindowSize({ width: 198, height: 198 })).toEqual({ width: 530, height: 464 })
+  })
+
+  it('places the pet opposite each manually selected bubble side', () => {
+    const size = { width: 530, height: 464 }
+    const pet = { width: 198, height: 198 }
+    expect(preferredPetOffsetForBubble('top', size, pet)).toEqual({ x: 166, y: 258 })
+    expect(preferredPetOffsetForBubble('right', size, pet)).toEqual({ x: 8, y: 133 })
+    expect(preferredPetOffsetForBubble('bottom', size, pet)).toEqual({ x: 166, y: 8 })
+    expect(preferredPetOffsetForBubble('left', size, pet)).toEqual({ x: 324, y: 133 })
+    expect(preferredPetOffsetForBubble('auto', size, pet)).toEqual({ x: 166, y: 258 })
+  })
+
   it('clamps a window to the display selected for a cross-screen drag', () => {
     expect(clampWindowPosition(
       { x: -2100, y: 980 },

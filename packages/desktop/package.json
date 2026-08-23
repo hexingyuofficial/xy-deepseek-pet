@@ -1,6 +1,6 @@
 {
   "name": "xy-deepseek-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Transparent desktop companion runtime for XY DeepSeek Pet",
   "keywords": ["deepseek", "desktop-pet", "electron", "petdex"],
   "homepage": "https://github.com/hexingyuofficial/xy-deepseek-pet#readme",

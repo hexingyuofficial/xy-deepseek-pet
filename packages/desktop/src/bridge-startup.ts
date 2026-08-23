@@ -8,6 +8,15 @@ export function bridgeFileFromArgs(args: readonly string[]): string | undefined 
   return args.find((argument) => argument.startsWith(prefix))?.slice(prefix.length)
 }
 
+export function finderComposePathsFromArgs(args: readonly string[]): string[] {
+  const marker = args.indexOf('--finder-compose')
+  if (marker < 0) return []
+  const count = Number(args[marker + 1])
+  if (!Number.isInteger(count) || count < 1 || count > 8) return []
+  return args.slice(marker + 2, marker + 2 + count)
+    .filter((value) => value.length > 0 && value.length <= 4096 && (value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)))
+}
+
 export function bridgeFileForStartup(
   args: readonly string[] = process.argv,
   environment: StartupEnvironment = process.env,

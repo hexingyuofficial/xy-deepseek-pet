@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { isHarnessHtml, parseBridgeDescriptor, parseLauncherLock, safeHarnessUrl } from '../runtime/launcher-utils.mjs'
+import { cleanElectronRuntimeEnv, isHarnessHtml, parseBridgeDescriptor, parseLauncherLock, safeHarnessUrl } from '../runtime/launcher-utils.mjs'
 
 describe('launcher safety helpers', () => {
+  it('does not propagate Electron host flags to child runtimes', () => {
+    expect(cleanElectronRuntimeEnv({
+      ELECTRON_RUN_AS_NODE: '1',
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+      PATH: '/usr/bin',
+    }, {
+      XY_DEEPSEEK_PET_BRIDGE_FILE: '/tmp/bridge.json',
+    })).toEqual({
+      PATH: '/usr/bin',
+      XY_DEEPSEEK_PET_BRIDGE_FILE: '/tmp/bridge.json',
+    })
+  })
+
   it('distinguishes Harness from an unrelated HTTP service', () => {
     expect(isHarnessHtml('<title>DeepSeek Harness</title>')).toBe(true)
     expect(isHarnessHtml('<h1>another local app</h1>')).toBe(false)

@@ -1,6 +1,13 @@
 const MAX_BRIDGE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_LOCK_AGE_MS = 60_000
 
+export function cleanElectronRuntimeEnv(source = process.env, extra = {}) {
+  const env = { ...source, ...extra }
+  delete env.ELECTRON_RUN_AS_NODE
+  delete env.ELECTRON_NO_ATTACH_CONSOLE
+  return env
+}
+
 export function isHarnessHtml(body) {
   return typeof body === 'string'
     && body.length <= 128 * 1024

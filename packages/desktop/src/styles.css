@@ -93,7 +93,7 @@ html[data-pet-vertical-dock="top"] .bubble-stack {
 }
 
 .bubble-stack:has(.session-bubble.is-expanded) {
-  width: min(320px, calc(100% - 16px));
+  width: min(308px, calc(100% - 16px));
 }
 
 html[data-window-dock="left"] .bubble-stack {
@@ -106,6 +106,38 @@ html[data-window-dock="right"] .bubble-stack {
   right: auto;
   left: 8px;
   transform: none;
+}
+
+html[data-bubble-side="top"] .bubble-stack {
+  top: auto;
+  right: auto;
+  bottom: calc(100% - var(--pet-stage-y, 150px) + 8px);
+  left: var(--pet-stage-center-x, 180px);
+  transform: translateX(-50%);
+}
+
+html[data-bubble-side="bottom"] .bubble-stack {
+  top: calc(var(--pet-stage-y, 0px) + var(--pet-display-height, 198px) * var(--pet-scale, 1) + 8px);
+  right: auto;
+  bottom: auto;
+  left: var(--pet-stage-center-x, 180px);
+  transform: translateX(-50%);
+}
+
+html[data-bubble-side="left"] .bubble-stack {
+  top: var(--pet-stage-center-y, 174px);
+  right: calc(100% - var(--pet-stage-x, 81px) + 8px);
+  bottom: auto;
+  left: auto;
+  transform: translateY(-50%);
+}
+
+html[data-bubble-side="right"] .bubble-stack {
+  top: var(--pet-stage-center-y, 174px);
+  right: auto;
+  bottom: auto;
+  left: calc(var(--pet-stage-right, 279px) + 8px);
+  transform: translateY(-50%);
 }
 
 .session-bubble {
@@ -254,13 +286,13 @@ html[data-window-dock="right"] .bubble-stack {
   position: relative;
   display: grid;
   min-height: 0;
-  max-height: min(190px, calc(100vh - 148px));
+  max-height: min(174px, calc(100vh - 148px));
   gap: 7px;
   padding: 9px 10px 10px;
 }
 
 .session-bubble.has-question .session-panel {
-  max-height: min(260px, calc(100vh - var(--pet-clearance, 206px) * var(--pet-scale, 1) - 8px));
+  max-height: min(242px, calc(100vh - var(--pet-clearance, 206px) * var(--pet-scale, 1) - 8px));
 }
 
 .question-form {
@@ -276,7 +308,7 @@ html[data-window-dock="right"] .bubble-stack {
   user-select: text;
 }
 
-.question-form::-webkit-scrollbar { width: 5px; }
+.question-form::-webkit-scrollbar { width: 6px; }
 .question-form::-webkit-scrollbar-track { background: transparent; }
 .question-form::-webkit-scrollbar-thumb { background: var(--electric-blue); border-radius: 2px; }
 
@@ -377,7 +409,7 @@ html[data-window-dock="right"] .bubble-stack {
 .session-timeline {
   display: grid;
   min-height: 32px;
-  max-height: 104px;
+  max-height: 92px;
   gap: 7px;
   padding: 2px 5px 2px 1px;
   overflow-x: hidden;
@@ -388,7 +420,7 @@ html[data-window-dock="right"] .bubble-stack {
   user-select: text;
 }
 
-.session-timeline::-webkit-scrollbar { width: 5px; }
+.session-timeline::-webkit-scrollbar { width: 6px; }
 .session-timeline::-webkit-scrollbar-track { background: transparent; }
 .session-timeline::-webkit-scrollbar-thumb { background: var(--electric-blue); border-radius: 2px; }
 
@@ -462,6 +494,22 @@ html[data-window-dock="right"] .bubble-stack {
   white-space: pre;
 }
 .markdown-body pre code { padding: 0; background: transparent; }
+.markdown-body table {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 6px;
+  overflow-x: auto;
+  border-spacing: 0;
+  white-space: nowrap;
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 3px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body th { font-weight: 800; }
 .session-text strong { font-weight: 800; }
 .session-text em { font-style: italic; }
 .session-text code {
@@ -475,6 +523,69 @@ html[data-window-dock="right"] .bubble-stack {
   grid-template-columns: minmax(0, 1fr) 24px 24px;
   gap: 3px;
   align-items: end;
+}
+
+.session-composer.is-dragover {
+  background: color-mix(in srgb, var(--electric-blue) 24%, transparent);
+}
+
+.composer-attachments {
+  display: flex;
+  max-width: 100%;
+  gap: 4px;
+  margin: 0 0 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.composer-attachment {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 132px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--electric-blue) 34%, var(--canvas-cloud));
+  border-radius: 4px;
+  font-size: 9px;
+}
+
+.composer-attachment img {
+  width: 18px;
+  height: 18px;
+  margin-left: -3px;
+  object-fit: cover;
+  image-rendering: auto;
+}
+
+.composer-attachment-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-attachment-remove {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  place-items: center;
+}
+
+.composer-attachment-remove:hover,
+.composer-attachment-remove:focus-visible {
+  background: var(--electric-blue);
+  outline: 0;
 }
 
 .session-composer-input {
@@ -503,6 +614,11 @@ html[data-window-dock="right"] .bubble-stack {
   opacity: 1;
 }
 
+.session-composer-input.is-recording::placeholder {
+  color: var(--electric-blue);
+  opacity: .9;
+}
+
 .session-open-client {
   position: relative;
   display: grid;
@@ -520,16 +636,29 @@ html[data-window-dock="right"] .bubble-stack {
 .session-open-client:hover,
 .session-open-client:focus-visible { background: var(--electric-blue); outline: 0; }
 
+.session-open-client[data-tooltip]::after,
+.session-enter-hint[data-tooltip]::after {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
 .session-enter-hint {
   position: relative;
   display: grid;
   width: 24px;
   height: 24px;
-  color: var(--ink);
+  color: #000;
   background: transparent;
+  border: 0;
   border-radius: 4px;
+  cursor: pointer;
   place-items: center;
 }
+
+.session-enter-hint:hover,
+.session-enter-hint:focus-visible { background: var(--electric-blue); outline: 0; }
 
 .session-action-icon {
   display: grid;
@@ -543,12 +672,19 @@ html[data-window-dock="right"] .bubble-stack {
   text-align: center;
 }
 
-.session-enter-hint .session-action-icon { transform: translateY(-.25px); }
-.session-open-client .session-action-icon {
+.session-enter-hint .session-action-icon {
+  color: #000;
+  opacity: 1;
+  -webkit-text-fill-color: #000;
   -webkit-text-stroke: .3px currentColor;
-  font-size: 16px;
-  font-weight: 700;
-  transform: translate(-.25px, -1px);
+  font-weight: 800;
+  transform: translate(-2px, 2px);
+}
+.session-open-client .session-action-icon {
+  -webkit-text-stroke: .65px currentColor;
+  font-size: 15px;
+  font-weight: 800;
+  transform: translate(2px, 1px);
 }
 
 .pixel-menu {

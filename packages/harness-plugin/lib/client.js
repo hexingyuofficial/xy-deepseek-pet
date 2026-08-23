@@ -44,6 +44,7 @@ window.__ModuleLoader__.load({
 
     // ../protocol/dist/index.js
     var PET_SETTINGS_QUERY = "xyPet";
+    var DEFAULT_PET_ACCENT_COLOR = "#2c86f0";
     function consumePetSettingsUrl(clientUrl) {
       const url2 = new URL(clientUrl);
       const requested = url2.searchParams.get(PET_SETTINGS_QUERY) === "settings";
@@ -51,10 +52,16 @@ window.__ModuleLoader__.load({
         url2.searchParams.delete(PET_SETTINGS_QUERY);
       return { requested, cleanUrl: url2.toString() };
     }
+    var MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
+    var MAX_CHAT_IMAGE_BASE64_LENGTH = Math.ceil(MAX_CHAT_IMAGE_BYTES / 3) * 4;
 
     // ../sounds/src/settings-view.ts
     var import_react = __toESM(require("react"), 1);
     var CHANNELS = ["turnComplete", "toolSuccess", "toolFailure"];
+    var SOUND_FILE_DROP_EVENT = "xy-deepseek-sound-file-drop";
+    function soundFileDropChannel(value) {
+      return CHANNELS.includes(value) ? value : void 0;
+    }
     function remoteValue(result) {
       if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
       return result.value;
@@ -69,20 +76,22 @@ window.__ModuleLoader__.load({
       return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh");
     }
     var copy = {
-      en: { title: "Sound notifications", mute: "Mute all", masterVolume: "Master volume", volume: "Volume", more: "More settings", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", drop: "Drop your sound here", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", custom: "Custom", behavior: "Behavior", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
-      zh: { title: "\u63D0\u793A\u97F3", mute: "\u5168\u90E8\u9759\u97F3", masterVolume: "\u603B\u4F53\u97F3\u91CF", volume: "\u97F3\u91CF", more: "\u66F4\u591A\u8BBE\u7F6E", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", drop: "\u62D6\u5165\u4F60\u559C\u6B22\u7684\u58F0\u97F3", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", custom: "\u81EA\u5B9A\u4E49", behavior: "\u63D0\u9192\u884C\u4E3A", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
+      en: { title: "Sound notifications", mute: "Mute all", masterVolume: "Master volume", volume: "Volume", more: "More settings", soundTypes: "Sound types", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", customSound: "Custom sound", drop: "Drop audio here or choose a file", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", rules: "Notification rules", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
+      zh: { title: "\u63D0\u793A\u97F3", mute: "\u5168\u90E8\u9759\u97F3", masterVolume: "\u603B\u4F53\u97F3\u91CF", volume: "\u97F3\u91CF", more: "\u66F4\u591A\u8BBE\u7F6E", soundTypes: "\u58F0\u97F3\u7C7B\u578B", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", customSound: "\u81EA\u5B9A\u4E49\u58F0\u97F3", drop: "\u62D6\u5165\u58F0\u97F3\uFF0C\u6216\u9009\u62E9\u6587\u4EF6", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", rules: "\u63D0\u9192\u89C4\u5219", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
     };
     var styles = {
       root: { alignSelf: "start", width: "100%", minHeight: 0, color: "var(--dsw-alias-label-primary, #f4f5f6)", marginTop: 8, borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.1))" },
       header: { minHeight: 42, display: "flex", alignItems: "center" },
       title: { margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, letterSpacing: 0 },
-      moreSummary: { minHeight: 38, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", fontSize: 13 },
+      moreSummary: { minHeight: 40, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", fontSize: 13, fontWeight: 500, borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.08))" },
       disclosure: { display: "inline-block", width: 12, flex: "0 0 12px", fontSize: 10, lineHeight: 1, textAlign: "center" },
       content: { padding: "0 0 8px" },
-      moreBody: { padding: "0 0 4px 18px" },
+      moreBody: { padding: "0 0 4px 19px" },
+      groupTitle: { margin: "8px 0 2px", color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12, fontWeight: 500, lineHeight: 1.5 },
       row: { display: "grid", gridTemplateColumns: "minmax(110px, 1fr) minmax(170px, 1.4fr)", gap: 12, alignItems: "center", minHeight: 42 },
       channel: { padding: "2px 0", borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.07))" },
-      channelSummary: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40, cursor: "pointer", fontSize: 13 },
+      channelSummary: { display: "grid", gridTemplateColumns: "minmax(110px, 1fr) minmax(170px, 1.4fr)", alignItems: "center", gap: 12, minHeight: 40, cursor: "pointer", listStyle: "none", fontSize: 13 },
+      channelTitle: { display: "flex", alignItems: "center", gap: 7, minWidth: 0 },
       channelBody: { padding: "2px 0 10px 18px" },
       controls: { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 6 },
       choices: { display: "flex", flexWrap: "wrap", gap: 6, margin: "5px 0 8px" },
@@ -90,7 +99,8 @@ window.__ModuleLoader__.load({
       active: { borderColor: "var(--dsw-alias-accent-primary, #1688f8)", background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
       range: { width: "100%", accentColor: "var(--dsw-alias-accent-primary, #1688f8)" },
       check: { width: 16, height: 16, accentColor: "var(--dsw-alias-accent-primary, #1688f8)" },
-      drop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 44, padding: "6px 8px", border: "1px dashed var(--dsw-alias-border-l2, rgba(255,255,255,.22))", borderRadius: 6, fontSize: 12 },
+      drop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 42, fontSize: 12 },
+      dropActive: { background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
       hint: { color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12 },
       status: { minHeight: 18, fontSize: 12, color: "var(--dsw-alias-label-secondary, #aeb3bb)" },
       error: { minHeight: 18, fontSize: 12, color: "var(--dsw-alias-danger, #ff6b6b)" }
@@ -103,6 +113,7 @@ window.__ModuleLoader__.load({
       const [error51, setError] = (0, import_react.useState)("");
       const [dragging, setDragging] = (0, import_react.useState)();
       const [moreOpen, setMoreOpen] = (0, import_react.useState)(false);
+      const [openChannels, setOpenChannels] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
       const fileInputs = (0, import_react.useRef)({});
       const saveTimer = (0, import_react.useRef)();
       const saveRevision = (0, import_react.useRef)(0);
@@ -170,6 +181,20 @@ window.__ModuleLoader__.load({
           setStatus("");
         }
       }, [c.saved, draft, locale, remote, snapshot2]);
+      (0, import_react.useEffect)(() => {
+        const handleDrop = (event) => {
+          const detail = event.detail;
+          if (!detail || detail.phase === "leave" || !detail.channel) {
+            setDragging(void 0);
+            return;
+          }
+          setDragging(detail.phase === "hover" ? detail.channel : void 0);
+          const file2 = detail.files?.[0];
+          if (detail.phase === "drop" && file2) void importFile(detail.channel, file2);
+        };
+        window.addEventListener(SOUND_FILE_DROP_EVENT, handleDrop);
+        return () => window.removeEventListener(SOUND_FILE_DROP_EVENT, handleDrop);
+      }, [importFile]);
       if (!snapshot2 || !draft) return import_react.default.createElement(
         "div",
         { style: { ...styles.root, ...embedded ? {} : { borderTop: 0 } } },
@@ -194,24 +219,52 @@ window.__ModuleLoader__.load({
         const config2 = draft.channels[channel];
         const sounds = snapshot2.sounds.filter((sound) => sound.channels.includes(channel));
         const selected = sounds.find((sound) => sound.id === config2.soundId);
+        const channelOpen = openChannels.has(channel);
         return import_react.default.createElement(
           "details",
-          { key: channel, style: styles.channel },
-          import_react.default.createElement("summary", { style: styles.channelSummary }, import_react.default.createElement("span", null, c[channel]), import_react.default.createElement("span", { style: styles.controls }, import_react.default.createElement("span", { style: styles.hint }, selected?.displayName ?? config2.soundId), import_react.default.createElement("input", { type: "checkbox", style: styles.check, title: c.enabled, checked: config2.enabled, onClick: (event) => event.stopPropagation(), onChange: (event) => {
-            const checked = event.currentTarget.checked;
-            mutate((next) => {
-              next.channels[channel].enabled = checked;
+          { key: channel, open: channelOpen, onToggle: (event) => {
+            const isOpen = event.currentTarget.open;
+            setOpenChannels((current) => {
+              const next = new Set(current);
+              if (isOpen) next.add(channel);
+              else next.delete(channel);
+              return next;
             });
-          } }))),
+          }, style: styles.channel },
+          import_react.default.createElement(
+            "summary",
+            { style: styles.channelSummary },
+            import_react.default.createElement("span", { style: styles.channelTitle }, import_react.default.createElement("span", { style: styles.disclosure, "aria-hidden": true }, channelOpen ? "\u25BC" : "\u25B6"), import_react.default.createElement("span", null, c[channel])),
+            import_react.default.createElement("span", { style: styles.controls }, import_react.default.createElement("span", { style: styles.hint }, selected?.displayName ?? config2.soundId), import_react.default.createElement("input", { type: "checkbox", style: styles.check, title: c.enabled, "aria-label": `${c[channel]} \xB7 ${c.enabled}`, checked: config2.enabled, onClick: (event) => event.stopPropagation(), onChange: (event) => {
+              const checked = event.currentTarget.checked;
+              mutate((next) => {
+                next.channels[channel].enabled = checked;
+              });
+            } }))
+          ),
           import_react.default.createElement(
             "div",
             { style: styles.channelBody },
-            import_react.default.createElement("div", { style: styles.choices }, ...sounds.map((sound) => import_react.default.createElement("button", { key: sound.id, type: "button", style: { ...styles.button, ...sound.id === config2.soundId ? styles.active : {} }, onClick: () => mutate((next) => {
+            import_react.default.createElement("div", { style: styles.row }, c.choose, import_react.default.createElement("div", { style: styles.choices }, ...sounds.map((sound) => import_react.default.createElement("button", { key: sound.id, type: "button", style: { ...styles.button, ...sound.id === config2.soundId ? styles.active : {} }, onClick: () => mutate((next) => {
               next.channels[channel].soundId = sound.id;
-            }) }, sound.displayName))),
+            }) }, sound.displayName)))),
             import_react.default.createElement("div", { style: styles.row }, `${c.volume} \xB7 ${Math.round(config2.volume * 100)}%`, range(config2.volume, (value) => mutate((next) => {
               next.channels[channel].volume = value;
             }))),
+            import_react.default.createElement(
+              "div",
+              { style: styles.row },
+              c.customSound,
+              import_react.default.createElement("div", { "data-xy-sound-drop-zone": channel, style: { ...styles.drop, ...dragging === channel ? styles.dropActive : {} }, onDragEnter: (event) => {
+                event.preventDefault();
+                setDragging(channel);
+              }, onDragOver: (event) => event.preventDefault(), onDragLeave: () => setDragging(void 0), onDrop: (event) => {
+                event.preventDefault();
+                setDragging(void 0);
+                const file2 = event.dataTransfer.files[0];
+                if (file2) void importFile(channel, file2);
+              } }, import_react.default.createElement("span", { style: styles.hint }, c.drop), import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => fileInputs.current[channel]?.click() }, c.browse))
+            ),
             import_react.default.createElement("div", { style: styles.controls }, import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => remote.preview(channel, config2.soundId).then(remoteValue).catch((reason) => setError(String(reason))) }, c.preview), !selected?.builtIn && import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
               try {
                 const value = remoteValue(await remote.removeSound(config2.soundId));
@@ -221,15 +274,6 @@ window.__ModuleLoader__.load({
                 setError(String(reason));
               }
             } }, c.delete)),
-            import_react.default.createElement("div", { style: { ...styles.drop, ...dragging === channel ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)" } : {} }, onDragEnter: (event) => {
-              event.preventDefault();
-              setDragging(channel);
-            }, onDragOver: (event) => event.preventDefault(), onDragLeave: () => setDragging(void 0), onDrop: (event) => {
-              event.preventDefault();
-              setDragging(void 0);
-              const file2 = event.dataTransfer.files[0];
-              if (file2) void importFile(channel, file2);
-            } }, import_react.default.createElement("span", null, c.drop), import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => fileInputs.current[channel]?.click() }, c.browse)),
             import_react.default.createElement("input", { ref: (element) => {
               fileInputs.current[channel] = element;
             }, type: "file", accept: ".wav,.mp3,.ogg,audio/wav,audio/mpeg,audio/ogg", hidden: true, onChange: (event) => {
@@ -263,25 +307,23 @@ window.__ModuleLoader__.load({
             import_react.default.createElement(
               "div",
               { style: styles.moreBody },
+              import_react.default.createElement("h4", { style: styles.groupTitle }, c.soundTypes),
               ...channels,
-              import_react.default.createElement("details", { style: styles.channel }, import_react.default.createElement("summary", { style: styles.channelSummary }, c.behavior), import_react.default.createElement(
-                "div",
-                { style: styles.channelBody },
-                import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
-                  next.minimumTurnDurationMs = value;
-                }), 6e4, 500, c.quietShort)),
-                import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
-                import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
-                  try {
-                    const value = remoteValue(await remote.restoreBuiltIns());
-                    setSnapshot(value);
-                    setDraft(value.config);
-                    setStatus(c.saved);
-                  } catch (reason) {
-                    setError(String(reason));
-                  }
-                } }, c.restore)
-              ))
+              import_react.default.createElement("h4", { style: styles.groupTitle }, c.rules),
+              import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
+                next.minimumTurnDurationMs = value;
+              }), 6e4, 500, c.quietShort)),
+              import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
+              import_react.default.createElement("div", { style: styles.row }, import_react.default.createElement("span", null), import_react.default.createElement("div", { style: styles.controls }, import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
+                try {
+                  const value = remoteValue(await remote.restoreBuiltIns());
+                  setSnapshot(value);
+                  setDraft(value.config);
+                  setStatus(c.saved);
+                } catch (reason) {
+                  setError(String(reason));
+                }
+              } }, c.restore)))
             )
           ),
           import_react.default.createElement("div", { style: error51 ? styles.error : styles.status, role: "status" }, error51 || status)
@@ -14809,6 +14851,7 @@ window.__ModuleLoader__.load({
     var movementLevel = external_exports.number().int().min(0).max(100);
     var settings = external_exports.object({
       themeId: external_exports.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(64),
+      accentColor: external_exports.string().regex(/^#[0-9a-f]{6}$/i),
       reducedMotion: external_exports.boolean(),
       bubbleVisible: external_exports.boolean(),
       walkingEnabled: external_exports.boolean(),
@@ -14823,7 +14866,11 @@ window.__ModuleLoader__.load({
       teleportShortcut: external_exports.string().regex(/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/),
       teleportOpensRecentChat: external_exports.boolean(),
       scale,
-      activationGesture: external_exports.enum(["doubleClick", "longPress"]),
+      doubleClickAction: external_exports.enum(["none", "voice", "openRecentChat", "openHarness"]),
+      longPressAction: external_exports.enum(["none", "voice", "openRecentChat", "openHarness"]),
+      voiceInputEnabled: external_exports.boolean(),
+      voiceProvider: external_exports.literal("system"),
+      voiceLanguage: external_exports.enum(["system", "zh-CN", "en-US"]),
       locale: external_exports.enum(["system", "zh-CN", "en"]),
       autoLaunch: external_exports.boolean(),
       menuActions: external_exports.array(action).max(6),
@@ -14833,6 +14880,7 @@ window.__ModuleLoader__.load({
     var stats = external_exports.object({ treasuresFound: external_exports.number().int().min(0) });
     var menuExtension = external_exports.object({ id: action, label: external_exports.object({ "zh-CN": external_exports.string(), en: external_exports.string() }), invoke: external_exports.enum(["open-client", "chat", "tap", "settings"]), order: external_exports.number().optional() });
     var launcherResult = external_exports.object({ displayName: external_exports.string().min(1).max(48), platform: external_exports.enum(["macOS", "Windows"]) });
+    var finderQuickActionResult = external_exports.object({ displayName: external_exports.string().min(1).max(48), platform: external_exports.enum(["macOS", "Windows"]) });
     var snapshot = external_exports.object({ config: settings, stats, themes: external_exports.array(theme), menuExtensions: external_exports.array(menuExtension) });
     var strict = (typeSymbol, schema) => ({ mode: "strict", typeSymbol, schema });
     var PET_REMOTE_DESCRIPTORS = [
@@ -14850,7 +14898,8 @@ window.__ModuleLoader__.load({
         { name: "iconId", wire: "iconId", source: "json", codec: strict("xy-deepseek-pet#launcher:iconId", external_exports.enum(["calm", "custom"])) },
         { name: "fileName", wire: "fileName", source: "json", codec: strict("xy-deepseek-pet#launcher:fileName", external_exports.string().max(255)) },
         { name: "dataBase64", wire: "dataBase64", source: "json", codec: strict("xy-deepseek-pet#launcher:data", external_exports.string().max(7e6)) }
-      ], result: strict("xy-deepseek-pet#launcher:result", launcherResult) }
+      ], result: strict("xy-deepseek-pet#launcher:result", launcherResult) },
+      { id: "xy-deepseek-pet#xyPet/createFinderQuickAction", service: "xyPet", namespace: "xyPet", method: "createFinderQuickAction", invocation: { kind: "direct" }, parameters: [], result: strict("xy-deepseek-pet#finder-quick-action:result", finderQuickActionResult) }
     ];
 
     // src/remote.ts
@@ -14901,10 +14950,16 @@ window.__ModuleLoader__.load({
         title: "\u684C\u9762\u5BA0\u7269",
         open: "\u6253\u5F00\u5BA0\u7269",
         close: "\u5173\u95ED\u5BA0\u7269",
+        appearance: "\u5916\u89C2",
+        interaction: "\u4EA4\u4E92",
+        behaviorDisplay: "\u884C\u4E3A\u4E0E\u663E\u793A",
+        shortcutsStartup: "\u5FEB\u6377\u4E0E\u542F\u52A8",
+        collection: "\u6536\u85CF",
         theme: "\u5BA0\u7269\u4E3B\u9898",
+        themeColor: "\u4E3B\u9898\u8272",
+        resetThemeColor: "\u6062\u590D\u9ED8\u8BA4",
         size: "\u5BA0\u7269\u5927\u5C0F",
         treasuresFound: "\u627E\u5230\u7684\u5B9D\u7BB1\u6570\u91CF",
-        more: "\u66F4\u591A\u8BBE\u7F6E",
         walking: "\u81EA\u52A8\u8D70\u52A8",
         motion: "\u51CF\u5C11\u52A8\u753B",
         bubbles: "\u6D88\u606F\u6C14\u6CE1",
@@ -14913,6 +14968,17 @@ window.__ModuleLoader__.load({
         gesture: "\u6253\u5F00 Harness",
         longPress: "\u957F\u6309",
         doubleClick: "\u53CC\u51FB",
+        interactionActions: "\u4EA4\u4E92\u52A8\u4F5C",
+        recordVoice: "\u5F55\u97F3",
+        openRecentChat: "\u6253\u5F00\u6700\u8FD1\u4F1A\u8BDD\u8BE6\u60C5",
+        noAction: "\u65E0\u52A8\u4F5C",
+        voiceInput: "\u8BED\u97F3\u8F93\u5165",
+        voiceSystem: "\u7CFB\u7EDF\u8BED\u97F3\u8BC6\u522B",
+        voiceLanguage: "\u8BC6\u522B\u8BED\u8A00",
+        followSystem: "\u8DDF\u968F\u7CFB\u7EDF",
+        chinese: "\u4E2D\u6587",
+        english: "English",
+        voiceHint: "\u9ED8\u8BA4\u4F7F\u7528\u7CFB\u7EDF\u8BED\u97F3\u8BC6\u522B\uFF0C\u4E0D\u5185\u7F6E\u6216\u4E0A\u4F20\u6A21\u578B\uFF1B\u6269\u5C55\u53EF\u4EE5\u63A5\u5165\u5176\u4ED6\u8BC6\u522B\u65B9\u5F0F\u3002\u5F55\u97F3\u6587\u5B57\u4F1A\u5148\u8FDB\u5165\u6700\u8FD1\u4F1A\u8BDD\uFF0C\u53EF\u4FEE\u6539\u540E\u518D\u53D1\u9001\u3002",
         movement: "\u8DA3\u5473\u79FB\u52A8",
         frequency: "\u8D70\u52A8\u9891\u7387",
         distance: "\u5355\u6B21\u8DDD\u79BB",
@@ -14953,6 +15019,12 @@ window.__ModuleLoader__.load({
         customIconHint: "\u70B9\u51FB\u6216\u62D6\u5165 PNG",
         createLauncher: "\u521B\u5EFA\u5230\u684C\u9762",
         createdLauncher: "\u5DF2\u521B\u5EFA",
+        finderAction: "Finder \u5FEB\u901F\u64CD\u4F5C",
+        finderActionHint: "\u5B89\u88C5\u540E\uFF0C\u9009\u4E2D\u6587\u4EF6\u5E76\u70B9\u51FB Finder \u53F3\u952E\u83DC\u5355\u201C\u5FEB\u901F\u64CD\u4F5C > \u53D1\u9001\u5230\u5C0F\u9CB8\u9C7C\u201D\uFF0C\u5373\u53EF\u53EC\u5524\u9CB8\u9C7C\u5E76\u628A\u8DEF\u5F84\u586B\u5165\u6700\u8FD1\u4F1A\u8BDD",
+        explorerAction: "\u8D44\u6E90\u7BA1\u7406\u5668\u53D1\u9001\u5230",
+        explorerActionHint: "\u5B89\u88C5\u540E\uFF0C\u9009\u4E2D\u6587\u4EF6\u5E76\u4ECE\u53F3\u952E\u83DC\u5355\u201C\u53D1\u9001\u5230 > \u53D1\u9001\u5230\u5C0F\u9CB8\u9C7C\u201D\uFF0C\u5373\u53EF\u53EC\u5524\u9CB8\u9C7C\u5E76\u628A\u8DEF\u5F84\u586B\u5165\u6700\u8FD1\u4F1A\u8BDD",
+        installFinderAction: "\u5B89\u88C5\u5230\u53F3\u952E\u83DC\u5355",
+        installedFinderAction: "\u5DF2\u5B89\u88C5\u5230\u53F3\u952E\u83DC\u5355",
         import: "\u5BFC\u5165\u5BA0\u7269\u5305",
         importHint: "\u62D6\u5165\u6216\u9009\u62E9 ZIP \u5BA0\u7269\u5305\uFF0C\u517C\u5BB9\u672C\u9879\u76EE\u4E3B\u9898\u4E0E Petdex \u683C\u5F0F",
         browse: "\u9009\u62E9 ZIP",
@@ -14964,10 +15036,16 @@ window.__ModuleLoader__.load({
         title: "Desktop pet",
         open: "Open pet",
         close: "Close pet",
+        appearance: "Appearance",
+        interaction: "Interaction",
+        behaviorDisplay: "Behavior & display",
+        shortcutsStartup: "Shortcuts & startup",
+        collection: "Collection",
         theme: "Pet theme",
+        themeColor: "Accent color",
+        resetThemeColor: "Reset",
         size: "Pet size",
         treasuresFound: "Treasure chests found",
-        more: "More settings",
         walking: "Auto wander",
         motion: "Reduced motion",
         bubbles: "Message bubbles",
@@ -14976,6 +15054,17 @@ window.__ModuleLoader__.load({
         gesture: "Open Harness",
         longPress: "Long press",
         doubleClick: "Double click",
+        interactionActions: "Interaction actions",
+        recordVoice: "Record",
+        openRecentChat: "Open latest session details",
+        noAction: "No action",
+        voiceInput: "Voice input",
+        voiceSystem: "System speech recognition",
+        voiceLanguage: "Recognition language",
+        followSystem: "Follow system",
+        chinese: "Chinese",
+        english: "English",
+        voiceHint: "Uses system speech recognition by default with no bundled or uploaded model. Extensions can add other providers. Dictation enters the latest session for review before sending.",
         movement: "Playful movement",
         frequency: "Wander frequency",
         distance: "Wander distance",
@@ -15016,6 +15105,12 @@ window.__ModuleLoader__.load({
         customIconHint: "Click or drop PNG",
         createLauncher: "Create on desktop",
         createdLauncher: "Created",
+        finderAction: "Finder Quick Action",
+        finderActionHint: "After installing, select files and choose \u201CQuick Actions > Send to Little Whale\u201D in Finder to summon the pet and prefill their paths",
+        explorerAction: "File Explorer Send to",
+        explorerActionHint: "After installing, select files and choose \u201CSend to > Send to Little Whale\u201D to summon the pet and prefill their paths",
+        installFinderAction: "Add to context menu",
+        installedFinderAction: "Added to context menu",
         import: "Import pet pack",
         importHint: "Drop or choose a ZIP pet pack; native themes and Petdex are supported",
         browse: "Choose ZIP",
@@ -15028,6 +15123,9 @@ window.__ModuleLoader__.load({
       root: { width: "100%", color: "var(--dsw-alias-label-primary, #f4f5f6)", padding: "12px 0", borderBottom: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.1))", letterSpacing: 0, fontFamily: "inherit", fontSize: 13 },
       header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4 },
       title: { margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, letterSpacing: 0 },
+      group: { padding: "3px 0 5px", borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.08))" },
+      firstGroup: { borderTop: 0 },
+      groupTitle: { margin: "8px 0 2px", color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12, fontWeight: 500, lineHeight: 1.5 },
       row: { display: "grid", gridTemplateColumns: "minmax(104px, .8fr) minmax(180px, 1.35fr)", alignItems: "center", gap: 12, minHeight: 40 },
       value: { justifySelf: "end", width: "100%", maxWidth: 360 },
       button: { minHeight: 34, padding: "0 12px", border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))", borderRadius: 6, background: "transparent", color: "inherit", cursor: "pointer" },
@@ -15041,11 +15139,11 @@ window.__ModuleLoader__.load({
       range: { width: "100%", accentColor: "var(--dsw-alias-accent-primary, #1688f8)" },
       rangeWrap: { display: "grid", gridTemplateColumns: "1fr 68px", alignItems: "center", gap: 8 },
       output: { textAlign: "right", fontSize: 12, fontVariantNumeric: "tabular-nums" },
-      details: { padding: "3px 0" },
+      details: { padding: "3px 0", borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.08))" },
       summary: { cursor: "pointer", fontSize: 13 },
-      disclosureSummary: { display: "flex", minHeight: 34, alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", outline: "none", fontSize: 13 },
+      disclosureSummary: { display: "flex", minHeight: 40, alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", outline: "none", fontSize: 13, fontWeight: 500 },
       disclosure: { display: "inline-block", width: 12, flex: "0 0 12px", fontSize: 10, lineHeight: 1, textAlign: "center" },
-      disclosureBody: { padding: "2px 0 8px" },
+      disclosureBody: { padding: "2px 0 10px 19px" },
       textInput: { width: "100%", height: 34, boxSizing: "border-box", padding: "0 9px", lineHeight: "32px", color: "inherit", background: "var(--dsw-alias-bg-base, rgba(255,255,255,.04))", border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))", borderRadius: 6 },
       choices: { display: "flex", flexWrap: "wrap", gap: 6, padding: "6px 0 2px" },
       launcherActions: { display: "grid", gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 1fr)", alignItems: "stretch", gap: 6 },
@@ -15053,8 +15151,9 @@ window.__ModuleLoader__.load({
       iconPreview: { width: 28, height: 28, objectFit: "contain", imageRendering: "auto" },
       iconText: { display: "block", minWidth: 0, overflow: "hidden" },
       iconLabel: { display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.25 },
-      drop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 52, margin: "5px 0 3px", padding: "7px 10px", border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))", borderRadius: 6 },
-      dropActive: { borderColor: "var(--dsw-alias-accent-primary, #1688f8)", background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
+      drop: { display: "grid", gridTemplateColumns: "minmax(104px, .8fr) minmax(180px, 1.35fr)", alignItems: "center", gap: 12, minHeight: 46 },
+      dropActive: { background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
+      dropAction: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", maxWidth: 360, justifySelf: "end" },
       iconDrop: { display: "grid", gridTemplateColumns: "30px minmax(0, 1fr)", alignItems: "center", gap: 5, height: 46, minHeight: 0, padding: "3px 7px", textAlign: "left", overflow: "hidden" },
       hint: { margin: "2px 0 0", color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12 },
       status: { minHeight: 18, marginTop: 4, fontSize: 12, color: "var(--dsw-alias-label-secondary, #aeb3bb)" },
@@ -15100,7 +15199,9 @@ window.__ModuleLoader__.load({
         const pointed = document.elementFromPoint(event.clientX, event.clientY);
         const zone = pointed?.closest("[data-xy-pet-drop-zone]");
         const kind = petFileDropKind(zone?.dataset.xyPetDropZone);
-        if (event.dataTransfer) event.dataTransfer.dropEffect = kind ? "copy" : "none";
+        const soundZone = pointed?.closest("[data-xy-sound-drop-zone]");
+        const soundChannel = soundFileDropChannel(soundZone?.dataset.xySoundDropZone);
+        if (event.dataTransfer) event.dataTransfer.dropEffect = kind || soundChannel ? "copy" : "none";
         const phase = event.type === "drop" ? "drop" : event.type === "dragleave" ? "leave" : "hover";
         const detail = {
           phase,
@@ -15108,6 +15209,12 @@ window.__ModuleLoader__.load({
           ...phase === "drop" ? { files: Array.from(event.dataTransfer?.files ?? []) } : {}
         };
         window.dispatchEvent(new CustomEvent(PET_FILE_DROP_EVENT, { detail }));
+        const soundDetail = {
+          phase,
+          ...soundChannel ? { channel: soundChannel } : {},
+          ...phase === "drop" ? { files: Array.from(event.dataTransfer?.files ?? []) } : {}
+        };
+        window.dispatchEvent(new CustomEvent(SOUND_FILE_DROP_EVENT, { detail: soundDetail }));
       };
       const events = ["dragenter", "dragover", "dragleave", "drop"];
       for (const event of events) window.addEventListener(event, handle, { capture: true });
@@ -15124,9 +15231,13 @@ window.__ModuleLoader__.load({
       const [error51, setError] = (0, import_react2.useState)("");
       const [soundRemote, setSoundRemote] = (0, import_react2.useState)(soundsRemote);
       const [launcherOpen, setLauncherOpen] = (0, import_react2.useState)(false);
+      const [appearanceOpen, setAppearanceOpen] = (0, import_react2.useState)(true);
+      const [interactionOpen, setInteractionOpen] = (0, import_react2.useState)(true);
       const [movementOpen, setMovementOpen] = (0, import_react2.useState)(false);
-      const [moreOpen, setMoreOpen] = (0, import_react2.useState)(false);
+      const [shortcutsOpen, setShortcutsOpen] = (0, import_react2.useState)(false);
+      const [menuOpen, setMenuOpen] = (0, import_react2.useState)(false);
       const [shortcutRecording, setShortcutRecording] = (0, import_react2.useState)(false);
+      const [fileActionFeedback, setFileActionFeedback] = (0, import_react2.useState)();
       const [launcherName, setLauncherName] = (0, import_react2.useState)("DeepSeek Harness");
       const [launcherIcon, setLauncherIcon] = (0, import_react2.useState)("calm");
       const [launcherFile, setLauncherFile] = (0, import_react2.useState)();
@@ -15234,6 +15345,16 @@ window.__ModuleLoader__.load({
       }, [chooseLauncherFile, importFile]);
       if (!snapshot2 || !draft) return import_react2.default.createElement("div", { "data-xy-deepseek-pet-settings": "", style: styles2.root }, error51 || status);
       const checkbox = (label, checked, change) => import_react2.default.createElement("label", { style: styles2.check }, import_react2.default.createElement("input", { type: "checkbox", style: styles2.checkbox, checked, onChange: (event) => change(event.currentTarget.checked) }), label);
+      const toggleRow = (label, checked, change) => import_react2.default.createElement(
+        "div",
+        { style: styles2.row },
+        import_react2.default.createElement("span", null, label),
+        import_react2.default.createElement(
+          "div",
+          { style: { ...styles2.value, display: "flex", justifyContent: "flex-end" } },
+          import_react2.default.createElement("input", { type: "checkbox", style: styles2.checkbox, checked, "aria-label": label, onChange: (event) => change(event.currentTarget.checked) })
+        )
+      );
       const levelLabel = (value, labels) => labels[Math.min(labels.length - 1, Math.floor(value / (100 / labels.length)))];
       const movementSlider = (label, value, labels, change, disabled = false) => {
         const valueLabel = levelLabel(value, labels);
@@ -15260,6 +15381,22 @@ window.__ModuleLoader__.load({
           )
         );
       };
+      const interactionActionRow = (label, key, value) => import_react2.default.createElement(
+        "div",
+        { style: styles2.row },
+        label,
+        import_react2.default.createElement("select", {
+          style: { ...styles2.textInput, ...styles2.value },
+          value,
+          onChange: (event) => {
+            const action2 = event.currentTarget.value;
+            mutate((next) => {
+              next[key] = action2;
+              next.voiceInputEnabled = next.doubleClickAction === "voice" || next.longPressAction === "voice";
+            });
+          }
+        }, import_react2.default.createElement("option", { value: "none" }, c.noAction), import_react2.default.createElement("option", { value: "voice" }, c.recordVoice), import_react2.default.createElement("option", { value: "openRecentChat" }, c.openRecentChat), import_react2.default.createElement("option", { value: "openHarness" }, c.openClient))
+      );
       const menuLabel = { "open-client": c.openClient, chat: c.chat, settings: c.settings };
       const selectedTheme = snapshot2.themes.find((theme2) => theme2.id === draft.themeId);
       const iconOption = (id, label, source) => import_react2.default.createElement("button", {
@@ -15289,203 +15426,275 @@ window.__ModuleLoader__.load({
           setStatus("");
         }
       };
+      const createFinderQuickAction = async () => {
+        setError("");
+        setStatus("");
+        setFileActionFeedback(void 0);
+        try {
+          const result = remoteValue2(await remote.createFinderQuickAction());
+          setFileActionFeedback({ ok: true, text: `${c.installedFinderAction}\uFF1A${result.displayName}` });
+        } catch (reason) {
+          const message = String(reason);
+          setError(message);
+          setFileActionFeedback({ ok: false, text: message });
+        }
+      };
       return import_react2.default.createElement(
         "div",
         { "data-xy-deepseek-pet-settings": "", style: styles2.root },
         import_react2.default.createElement("div", { style: styles2.header }, import_react2.default.createElement("h3", { style: styles2.title }, c.title), import_react2.default.createElement("button", { type: "button", style: styles2.primary, disabled: desktop.busy, onClick: desktop.toggle }, desktop.open ? c.close : c.open)),
         import_react2.default.createElement(
-          "div",
-          { style: styles2.row },
-          c.theme,
-          import_react2.default.createElement("details", { style: { ...styles2.details, ...styles2.value } }, import_react2.default.createElement("summary", { style: styles2.summary }, selectedTheme?.name ?? draft.themeId), import_react2.default.createElement("div", { style: styles2.choices }, ...snapshot2.themes.map((theme2) => import_react2.default.createElement("button", { key: theme2.id, type: "button", style: { ...styles2.button, ...theme2.id === draft.themeId ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)" } : {} }, onClick: () => mutate((next) => {
-            next.themeId = theme2.id;
-          }) }, theme2.name))))
-        ),
-        import_react2.default.createElement("div", { style: styles2.row }, c.size, import_react2.default.createElement("div", { style: { ...styles2.rangeWrap, ...styles2.value } }, import_react2.default.createElement("input", { type: "range", min: 0.2, max: 2, step: 0.05, value: draft.scale, style: styles2.range, "aria-label": c.size, onChange: (event) => {
-          const value = Number(event.currentTarget.value);
-          mutate((next) => {
-            next.scale = value;
-          });
-        } }), import_react2.default.createElement("output", { style: styles2.output }, `${Math.round(draft.scale * 100)}%`))),
-        import_react2.default.createElement("div", { style: styles2.row }, c.treasuresFound, import_react2.default.createElement("output", { style: { ...styles2.output, ...styles2.value } }, `\u{1FA8E} \xD7 ${snapshot2.stats.treasuresFound}`)),
-        import_react2.default.createElement("div", { style: styles2.row }, c.gesture, import_react2.default.createElement(
-          "div",
-          { style: { ...styles2.segment, ...styles2.value } },
-          import_react2.default.createElement("button", { type: "button", style: { ...styles2.segmentButton, ...draft.activationGesture === "longPress" ? styles2.segmentActive : {} }, onClick: () => mutate((next) => {
-            next.activationGesture = "longPress";
-          }) }, c.longPress),
-          import_react2.default.createElement("button", { type: "button", style: { ...styles2.segmentButton, ...draft.activationGesture === "doubleClick" ? styles2.segmentActive : {} }, onClick: () => mutate((next) => {
-            next.activationGesture = "doubleClick";
-          }) }, c.doubleClick)
-        )),
-        import_react2.default.createElement(
-          "div",
-          { style: styles2.checks },
-          checkbox(c.walking, draft.walkingEnabled, (value) => mutate((next) => {
-            next.walkingEnabled = value;
-          })),
-          checkbox(c.bubbles, draft.bubbleVisible, (value) => mutate((next) => {
-            next.bubbleVisible = value;
-          })),
-          checkbox(c.autoLaunch, draft.autoLaunch, (value) => mutate((next) => {
-            next.autoLaunch = value;
-          })),
-          checkbox(c.showOnFullScreen, draft.showOnFullScreen, (value) => mutate((next) => {
-            next.showOnFullScreen = value;
-          }))
-        ),
-        import_react2.default.createElement(
-          "div",
-          { style: styles2.row },
-          c.summon,
+          "details",
+          { open: appearanceOpen, onToggle: (event) => setAppearanceOpen(event.currentTarget.open), style: { ...styles2.details, borderTop: 0 } },
+          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, appearanceOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.appearance)),
           import_react2.default.createElement(
             "div",
-            { style: { ...styles2.value, display: "grid", gridTemplateColumns: "minmax(0, 1fr) 16px", alignItems: "center", gap: 8 } },
+            { style: styles2.disclosureBody },
             import_react2.default.createElement(
               "div",
-              { style: { minWidth: 0 } },
-              import_react2.default.createElement("input", {
-                type: "text",
-                maxLength: 64,
-                value: shortcutRecording ? c.shortcutPrompt : draft.teleportShortcut,
-                readOnly: true,
-                disabled: !draft.teleportShortcutEnabled,
-                style: { ...styles2.textInput, width: "100%", cursor: draft.teleportShortcutEnabled ? "pointer" : "default", opacity: draft.teleportShortcutEnabled ? 1 : 0.45, ...shortcutRecording ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--dsw-alias-accent-primary, #1688f8) 20%, transparent)" } : {} },
-                "aria-label": c.summonShortcut,
-                "aria-describedby": "xy-pet-shortcut-hint",
-                onFocus: () => setShortcutRecording(true),
-                onBlur: () => setShortcutRecording(false),
-                onKeyDown: (event) => {
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                    return;
-                  }
-                  const shortcut = shortcutFromKey(event);
-                  if (!shortcut) return;
-                  event.preventDefault();
-                  mutate((next) => {
-                    next.teleportShortcut = shortcut;
-                  });
-                  setShortcutRecording(false);
-                  event.currentTarget.blur();
-                }
-              }),
-              import_react2.default.createElement("div", { id: "xy-pet-shortcut-hint", style: { ...styles2.hint, marginTop: 4 } }, shortcutRecording ? c.shortcutPrompt : c.shortcutHint)
+              { style: styles2.row },
+              c.theme,
+              import_react2.default.createElement("details", { style: { ...styles2.details, ...styles2.value, borderTop: 0, padding: 0 } }, import_react2.default.createElement("summary", { style: styles2.summary }, selectedTheme?.name ?? draft.themeId), import_react2.default.createElement("div", { style: styles2.choices }, ...snapshot2.themes.map((theme2) => import_react2.default.createElement("button", { key: theme2.id, type: "button", style: { ...styles2.button, ...theme2.id === draft.themeId ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)" } : {} }, onClick: () => mutate((next) => {
+                next.themeId = theme2.id;
+              }) }, theme2.name))))
             ),
-            import_react2.default.createElement("input", {
-              type: "checkbox",
-              style: styles2.checkbox,
-              checked: draft.teleportShortcutEnabled,
-              "aria-label": c.summon,
-              onChange: (event) => mutate((next) => {
-                next.teleportShortcutEnabled = event.currentTarget.checked;
-              })
-            })
+            import_react2.default.createElement(
+              "div",
+              { "data-xy-pet-drop-zone": "theme", style: { ...styles2.drop, ...dropTarget === "theme" ? styles2.dropActive : {} } },
+              import_react2.default.createElement("span", null, c.import),
+              import_react2.default.createElement("div", { style: styles2.dropAction }, import_react2.default.createElement("p", { style: { ...styles2.hint, margin: 0 } }, c.importHint), import_react2.default.createElement("button", { type: "button", style: styles2.button, onClick: () => fileInput.current?.click() }, c.browse))
+            ),
+            import_react2.default.createElement("input", { ref: fileInput, type: "file", accept: ".zip,application/zip", hidden: true, onChange: (event) => {
+              const file2 = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file2) void importFile(file2);
+            } }),
+            import_react2.default.createElement(
+              "div",
+              { style: styles2.row },
+              c.themeColor,
+              import_react2.default.createElement(
+                "div",
+                { style: { ...styles2.value, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 } },
+                import_react2.default.createElement("input", { type: "color", value: draft.accentColor, "aria-label": c.themeColor, style: { width: 38, height: 28, padding: 2, border: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.16))", borderRadius: 5, background: "transparent", cursor: "pointer" }, onChange: (event) => {
+                  const value = event.currentTarget.value;
+                  mutate((next) => {
+                    next.accentColor = value;
+                  });
+                } }),
+                import_react2.default.createElement("output", { style: { ...styles2.output, minWidth: 58 } }, draft.accentColor.toUpperCase()),
+                import_react2.default.createElement("button", {
+                  type: "button",
+                  style: { ...styles2.button, minHeight: 28, height: 28, padding: "0 9px" },
+                  disabled: draft.accentColor.toLowerCase() === DEFAULT_PET_ACCENT_COLOR,
+                  onClick: () => mutate((next) => {
+                    next.accentColor = DEFAULT_PET_ACCENT_COLOR;
+                  })
+                }, c.resetThemeColor)
+              )
+            ),
+            import_react2.default.createElement("div", { style: styles2.row }, c.size, import_react2.default.createElement("div", { style: { ...styles2.rangeWrap, ...styles2.value } }, import_react2.default.createElement("input", { type: "range", min: 0.2, max: 2, step: 0.05, value: draft.scale, style: styles2.range, "aria-label": c.size, onChange: (event) => {
+              const value = Number(event.currentTarget.value);
+              mutate((next) => {
+                next.scale = value;
+              });
+            } }), import_react2.default.createElement("output", { style: styles2.output }, `${Math.round(draft.scale * 100)}%`)))
           )
         ),
         import_react2.default.createElement(
-          "div",
-          { style: styles2.checks },
-          checkbox(c.summonChat, draft.teleportOpensRecentChat, (value) => mutate((next) => {
-            next.teleportOpensRecentChat = value;
-          }))
+          "details",
+          { open: interactionOpen, onToggle: (event) => setInteractionOpen(event.currentTarget.open), style: styles2.details },
+          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, interactionOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.interactionActions)),
+          import_react2.default.createElement(
+            "div",
+            { style: styles2.disclosureBody },
+            toggleRow(c.bubbles, draft.bubbleVisible, (value) => mutate((next) => {
+              next.bubbleVisible = value;
+            })),
+            interactionActionRow(c.doubleClick, "doubleClickAction", draft.doubleClickAction),
+            interactionActionRow(c.longPress, "longPressAction", draft.longPressAction),
+            draft.voiceInputEnabled && import_react2.default.createElement(
+              import_react2.default.Fragment,
+              null,
+              import_react2.default.createElement("div", { style: styles2.row }, c.voiceInput, import_react2.default.createElement("span", { style: { ...styles2.value, textAlign: "right" } }, c.voiceSystem)),
+              import_react2.default.createElement(
+                "div",
+                { style: styles2.row },
+                c.voiceLanguage,
+                import_react2.default.createElement(
+                  "select",
+                  { style: { ...styles2.textInput, ...styles2.value }, value: draft.voiceLanguage, onChange: (event) => mutate((next) => {
+                    next.voiceLanguage = event.currentTarget.value;
+                  }) },
+                  import_react2.default.createElement("option", { value: "system" }, c.followSystem),
+                  import_react2.default.createElement("option", { value: "zh-CN" }, c.chinese),
+                  import_react2.default.createElement("option", { value: "en-US" }, c.english)
+                )
+              ),
+              import_react2.default.createElement("p", { style: { ...styles2.hint, margin: "0 0 5px" } }, c.voiceHint)
+            )
+          )
         ),
         import_react2.default.createElement(
           "details",
           { open: movementOpen, onToggle: (event) => setMovementOpen(event.currentTarget.open), style: styles2.details },
-          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, movementOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.movement)),
+          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, movementOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.behaviorDisplay)),
           import_react2.default.createElement(
             "div",
             { style: styles2.disclosureBody },
-            movementSlider(c.frequency, draft.wanderFrequency, [c.veryOccasional, c.occasional, c.sometimes, c.frequent, c.veryFrequent], (value) => mutate((next) => {
-              next.wanderFrequency = value;
+            toggleRow(c.walking, draft.walkingEnabled, (value) => mutate((next) => {
+              next.walkingEnabled = value;
             })),
-            movementSlider(c.distance, draft.wanderDistance, [c.tinyStep, c.easyStep, c.bigStep], (value) => mutate((next) => {
-              next.wanderDistance = value;
-            })),
-            import_react2.default.createElement(
-              "div",
-              { style: styles2.row },
-              c.chase,
-              import_react2.default.createElement("div", { style: { ...styles2.value, display: "flex", justifyContent: "flex-end" } }, import_react2.default.createElement("input", {
-                type: "checkbox",
-                style: styles2.checkbox,
-                checked: draft.mouseChaseEnabled,
-                "aria-label": c.chase,
-                onChange: (event) => mutate((next) => {
-                  next.mouseChaseEnabled = event.currentTarget.checked;
-                })
+            draft.walkingEnabled && import_react2.default.createElement(
+              import_react2.default.Fragment,
+              null,
+              movementSlider(c.frequency, draft.wanderFrequency, [c.veryOccasional, c.occasional, c.sometimes, c.frequent, c.veryFrequent], (value) => mutate((next) => {
+                next.wanderFrequency = value;
+              })),
+              movementSlider(c.distance, draft.wanderDistance, [c.tinyStep, c.easyStep, c.bigStep], (value) => mutate((next) => {
+                next.wanderDistance = value;
               }))
             ),
-            movementSlider(c.chaseSpeed, draft.mouseChaseSpeed, [c.slow, c.lively, c.speedy], (value) => mutate((next) => {
+            toggleRow(c.chase, draft.mouseChaseEnabled, (value) => mutate((next) => {
+              next.mouseChaseEnabled = value;
+            })),
+            draft.mouseChaseEnabled && movementSlider(c.chaseSpeed, draft.mouseChaseSpeed, [c.slow, c.lively, c.speedy], (value) => mutate((next) => {
               next.mouseChaseSpeed = value;
-            }), !draft.mouseChaseEnabled),
-            import_react2.default.createElement(
-              "div",
-              { style: styles2.row },
-              c.fling,
-              import_react2.default.createElement("div", { style: { ...styles2.value, display: "flex", justifyContent: "flex-end" } }, import_react2.default.createElement("input", {
-                type: "checkbox",
-                style: styles2.checkbox,
-                checked: draft.flingEnabled,
-                "aria-label": c.fling,
-                onChange: (event) => mutate((next) => {
-                  next.flingEnabled = event.currentTarget.checked;
-                })
-              }))
-            ),
-            movementSlider(c.resistance, draft.flingResistance, [c.lowResistance, c.balancedResistance, c.highResistance], (value) => mutate((next) => {
+            })),
+            toggleRow(c.fling, draft.flingEnabled, (value) => mutate((next) => {
+              next.flingEnabled = value;
+            })),
+            draft.flingEnabled && movementSlider(c.resistance, draft.flingResistance, [c.lowResistance, c.balancedResistance, c.highResistance], (value) => mutate((next) => {
               next.flingResistance = value;
-            }), !draft.flingEnabled)
+            })),
+            toggleRow(c.showOnFullScreen, draft.showOnFullScreen, (value) => mutate((next) => {
+              next.showOnFullScreen = value;
+            })),
+            toggleRow(c.motion, draft.reducedMotion, (value) => mutate((next) => {
+              next.reducedMotion = value;
+            }))
           )
         ),
-        import_react2.default.createElement("div", { "data-xy-pet-drop-zone": "theme", style: { ...styles2.drop, ...dropTarget === "theme" ? styles2.dropActive : {} } }, import_react2.default.createElement("div", null, import_react2.default.createElement("div", null, c.import), import_react2.default.createElement("p", { style: styles2.hint }, c.importHint)), import_react2.default.createElement("button", { type: "button", style: styles2.button, onClick: () => fileInput.current?.click() }, c.browse)),
-        import_react2.default.createElement("input", { ref: fileInput, type: "file", accept: ".zip,application/zip", hidden: true, onChange: (event) => {
-          const file2 = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file2) void importFile(file2);
-        } }),
         import_react2.default.createElement(
           "details",
-          { open: launcherOpen, onToggle: (event) => setLauncherOpen(event.currentTarget.open), style: styles2.details },
-          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, launcherOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.launcher)),
+          { open: shortcutsOpen, onToggle: (event) => setShortcutsOpen(event.currentTarget.open), style: styles2.details },
+          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, shortcutsOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.shortcutsStartup)),
           import_react2.default.createElement(
             "div",
             { style: styles2.disclosureBody },
-            import_react2.default.createElement("p", { style: styles2.hint }, c.launcherHint),
-            import_react2.default.createElement("div", { style: styles2.row }, c.launcherName, import_react2.default.createElement("input", { type: "text", maxLength: 48, value: launcherName, style: { ...styles2.textInput, ...styles2.value }, onChange: (event) => setLauncherName(event.currentTarget.value) })),
-            import_react2.default.createElement("div", { style: styles2.row }, c.launcherIcon, import_react2.default.createElement(
+            toggleRow(c.autoLaunch, draft.autoLaunch, (value) => mutate((next) => {
+              next.autoLaunch = value;
+            })),
+            import_react2.default.createElement(
               "div",
-              { style: { ...styles2.launcherActions, ...styles2.value } },
-              iconOption("calm", c.calm, whale_calm_default),
-              iconOption("custom", launcherFile?.name ?? c.customIcon, customIconPreview),
-              import_react2.default.createElement("button", { type: "button", style: { ...styles2.button, height: 46, minHeight: 0, padding: "0 8px" }, onClick: () => void createLauncher() }, c.createLauncher)
-            )),
-            import_react2.default.createElement("input", { ref: launcherFileInput, type: "file", accept: ".png,image/png", hidden: true, onChange: (event) => {
-              const file2 = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file2) chooseLauncherFile(file2);
-            } })
+              { style: styles2.row },
+              c.summon,
+              import_react2.default.createElement(
+                "div",
+                { style: { ...styles2.value, display: "grid", gridTemplateColumns: "minmax(0, 1fr) 16px", alignItems: "center", gap: 8 } },
+                import_react2.default.createElement(
+                  "div",
+                  { style: { minWidth: 0 } },
+                  import_react2.default.createElement("input", {
+                    type: "text",
+                    maxLength: 64,
+                    value: shortcutRecording ? c.shortcutPrompt : draft.teleportShortcut,
+                    readOnly: true,
+                    disabled: !draft.teleportShortcutEnabled,
+                    style: { ...styles2.textInput, width: "100%", cursor: draft.teleportShortcutEnabled ? "pointer" : "default", opacity: draft.teleportShortcutEnabled ? 1 : 0.45, ...shortcutRecording ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--dsw-alias-accent-primary, #1688f8) 20%, transparent)" } : {} },
+                    "aria-label": c.summonShortcut,
+                    "aria-describedby": "xy-pet-shortcut-hint",
+                    onFocus: () => setShortcutRecording(true),
+                    onBlur: () => setShortcutRecording(false),
+                    onKeyDown: (event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                        return;
+                      }
+                      const shortcut = shortcutFromKey(event);
+                      if (!shortcut) return;
+                      event.preventDefault();
+                      mutate((next) => {
+                        next.teleportShortcut = shortcut;
+                      });
+                      setShortcutRecording(false);
+                      event.currentTarget.blur();
+                    }
+                  }),
+                  import_react2.default.createElement("div", { id: "xy-pet-shortcut-hint", style: { ...styles2.hint, marginTop: 4 } }, shortcutRecording ? c.shortcutPrompt : c.shortcutHint)
+                ),
+                import_react2.default.createElement("input", { type: "checkbox", style: styles2.checkbox, checked: draft.teleportShortcutEnabled, "aria-label": c.summon, onChange: (event) => mutate((next) => {
+                  next.teleportShortcutEnabled = event.currentTarget.checked;
+                }) })
+              )
+            ),
+            draft.teleportShortcutEnabled && toggleRow(c.summonChat, draft.teleportOpensRecentChat, (value) => mutate((next) => {
+              next.teleportOpensRecentChat = value;
+            })),
+            import_react2.default.createElement(
+              "div",
+              { style: styles2.row },
+              import_react2.default.createElement(
+                "span",
+                null,
+                /Windows/i.test(navigator.userAgent) ? c.explorerAction : c.finderAction,
+                import_react2.default.createElement("span", { style: { ...styles2.hint, display: "block", marginTop: 3 } }, /Windows/i.test(navigator.userAgent) ? c.explorerActionHint : c.finderActionHint),
+                fileActionFeedback && import_react2.default.createElement("span", { role: "status", style: { ...styles2.hint, display: "block", marginTop: 4, color: fileActionFeedback.ok ? "var(--dsw-alias-accent-primary, #1688f8)" : "var(--dsw-alias-danger, #ff6b6b)" } }, fileActionFeedback.ok ? `\u2713 ${fileActionFeedback.text}` : fileActionFeedback.text)
+              ),
+              import_react2.default.createElement("div", { style: { ...styles2.value, display: "flex", justifyContent: "flex-end" } }, import_react2.default.createElement("button", { type: "button", style: styles2.button, onClick: () => void createFinderQuickAction() }, fileActionFeedback?.ok ? `\u2713 ${c.installedFinderAction}` : c.installFinderAction))
+            ),
+            import_react2.default.createElement(
+              "details",
+              { open: launcherOpen, onToggle: (event) => setLauncherOpen(event.currentTarget.open), style: styles2.details },
+              import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, launcherOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.launcher)),
+              import_react2.default.createElement(
+                "div",
+                { style: styles2.disclosureBody },
+                import_react2.default.createElement("p", { style: styles2.hint }, c.launcherHint),
+                import_react2.default.createElement("div", { style: styles2.row }, c.launcherName, import_react2.default.createElement("input", { type: "text", maxLength: 48, value: launcherName, style: { ...styles2.textInput, ...styles2.value }, onChange: (event) => setLauncherName(event.currentTarget.value) })),
+                import_react2.default.createElement("div", { style: styles2.row }, c.launcherIcon, import_react2.default.createElement(
+                  "div",
+                  { style: { ...styles2.launcherActions, ...styles2.value } },
+                  iconOption("calm", c.calm, whale_calm_default),
+                  iconOption("custom", launcherFile?.name ?? c.customIcon, customIconPreview),
+                  import_react2.default.createElement("button", { type: "button", style: { ...styles2.button, height: 46, minHeight: 0, padding: "0 8px" }, onClick: () => void createLauncher() }, c.createLauncher)
+                )),
+                import_react2.default.createElement("input", { ref: launcherFileInput, type: "file", accept: ".png,image/png", hidden: true, onChange: (event) => {
+                  const file2 = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file2) chooseLauncherFile(file2);
+                } })
+              )
+            )
           )
         ),
-        import_react2.default.createElement("details", { open: moreOpen, onToggle: (event) => setMoreOpen(event.currentTarget.open), style: styles2.details }, import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, moreOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.more)), import_react2.default.createElement(
-          "div",
-          { style: { ...styles2.disclosureBody, paddingBottom: 6 } },
-          import_react2.default.createElement("div", { style: styles2.checks }, checkbox(c.motion, draft.reducedMotion, (value) => mutate((next) => {
-            next.reducedMotion = value;
-          }))),
-          import_react2.default.createElement("details", { style: styles2.details }, import_react2.default.createElement("summary", { style: styles2.summary }, c.menu), import_react2.default.createElement("p", { style: styles2.hint }, c.menuHint), import_react2.default.createElement(
+        import_react2.default.createElement(
+          "details",
+          { open: menuOpen, onToggle: (event) => setMenuOpen(event.currentTarget.open), style: styles2.details },
+          import_react2.default.createElement("summary", { style: styles2.disclosureSummary }, import_react2.default.createElement("span", { style: styles2.disclosure, "aria-hidden": true }, menuOpen ? "\u25BC" : "\u25B6"), import_react2.default.createElement("span", null, c.menu)),
+          import_react2.default.createElement(
             "div",
-            { style: styles2.checks },
-            ...menuActions.map((action2) => checkbox(menuLabel[action2], draft.menuActions.includes(action2), (checked) => mutate((next) => {
-              next.menuActions = checked ? [.../* @__PURE__ */ new Set([...next.menuActions, action2])] : next.menuActions.filter((item) => item !== action2);
-            }))),
-            ...snapshot2.menuExtensions.map((action2) => checkbox(action2.label[locale], draft.menuActions.includes(action2.id), (checked) => mutate((next) => {
-              next.menuActions = checked ? [.../* @__PURE__ */ new Set([...next.menuActions, action2.id])] : next.menuActions.filter((item) => item !== action2.id);
-            })))
-          ))
-        )),
+            { style: styles2.disclosureBody },
+            import_react2.default.createElement("p", { style: styles2.hint }, c.menuHint),
+            import_react2.default.createElement(
+              "div",
+              { style: styles2.checks },
+              ...menuActions.map((action2) => checkbox(menuLabel[action2], draft.menuActions.includes(action2), (checked) => mutate((next) => {
+                next.menuActions = checked ? [.../* @__PURE__ */ new Set([...next.menuActions, action2])] : next.menuActions.filter((item) => item !== action2);
+              }))),
+              ...snapshot2.menuExtensions.map((action2) => checkbox(action2.label[locale], draft.menuActions.includes(action2.id), (checked) => mutate((next) => {
+                next.menuActions = checked ? [.../* @__PURE__ */ new Set([...next.menuActions, action2.id])] : next.menuActions.filter((item) => item !== action2.id);
+              })))
+            )
+          )
+        ),
+        import_react2.default.createElement(
+          "section",
+          { style: styles2.group },
+          import_react2.default.createElement("h4", { style: styles2.groupTitle }, c.collection),
+          import_react2.default.createElement("div", { style: styles2.row }, c.treasuresFound, import_react2.default.createElement("output", { style: { ...styles2.output, ...styles2.value } }, `\u{1FA8E} \xD7 ${snapshot2.stats.treasuresFound}`))
+        ),
         soundRemote && import_react2.default.createElement(SoundSettings, { remote: soundRemote, locale, embedded: true }),
         import_react2.default.createElement("div", { style: error51 ? styles2.error : styles2.status, role: "status" }, error51 || status)
       );
@@ -15497,15 +15706,26 @@ window.__ModuleLoader__.load({
       const timer = window.setInterval(() => {
         attempts += 1;
         const target = document.querySelector("[data-xy-deepseek-pet-settings]");
-        if (target) {
+        if (target && target.getClientRects().length > 0) {
           target.scrollIntoView({ block: "start", behavior: "smooth" });
           window.history.replaceState(window.history.state, "", request.cleanUrl);
           window.clearInterval(timer);
           return;
         }
         const trigger = document.querySelector('button[aria-haspopup="dialog"]');
-        if (trigger?.getAttribute("aria-expanded") !== "true") trigger?.click();
-        else document.querySelector('[role="dialog"] nav button')?.click();
+        if (trigger?.getAttribute("aria-expanded") !== "true") {
+          trigger?.click();
+        } else {
+          const dialog = document.querySelector('[role="dialog"]');
+          const petTab = dialog?.querySelector('[role="tab"][id$="-tab-xy-deepseek-pet"]');
+          if (petTab) {
+            if (petTab.getAttribute("aria-selected") !== "true") petTab.click();
+          } else {
+            const pluginsLabels = /* @__PURE__ */ new Set(["\u63D2\u4EF6", "Plugins"]);
+            const pluginsSection = [...dialog?.querySelectorAll("nav button") ?? []].find((button) => pluginsLabels.has(button.textContent?.trim() ?? ""));
+            if (pluginsSection?.getAttribute("aria-current") !== "true") pluginsSection?.click();
+          }
+        }
         if (attempts >= 100) window.clearInterval(timer);
       }, 50);
       return () => window.clearInterval(timer);
@@ -15519,7 +15739,7 @@ window.__ModuleLoader__.load({
       const unmountRemote = await ctx.remote.$mount(remote_default);
       const settingsFiber = ctx.inject(["remote.xyPet"], (scope) => {
         const remote = scope.remote.xyPet;
-        scope.slots.inject("settings.general.item", () => scope.slots.register({ name: "settings.general.item", id: "xy-deepseek-pet", order: 100, label: useChinese() ? "\u684C\u9762\u5BA0\u7269" : "Desktop pet" }, () => import_react2.default.createElement(PetSettingsView, { remote })));
+        scope.slots.inject("settings.plugins.tab", () => scope.slots.register({ name: "settings.plugins.tab", id: "xy-deepseek-pet", order: 100, label: useChinese() ? "\u684C\u9762\u5BA0\u7269" : "Desktop pet" }, () => import_react2.default.createElement(PetSettingsView, { remote })));
       });
       const soundsFiber = ctx.inject(["remote.xySounds"], (scope) => {
         soundsRemote = scope.remote.xySounds;

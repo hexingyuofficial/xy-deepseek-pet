@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { DEFAULT_PET_ACCENT_COLOR } from '@xy-deepseek-pet/protocol'
 import type { PetMenuContribution, PetMenuRegistry } from './menu-registry.js'
 
 export const PET_SCALES = [0.2, 0.4, 0.75, 1, 1.25, 1.5, 2] as const
@@ -8,9 +9,12 @@ export const PET_SCALE_MIN = 0.2
 export const PET_SCALE_MAX = 2
 export const PET_SCALE_STEP = 0.05
 export const PET_MENU_ACTIONS = ['open-client', 'chat', 'settings'] as const
+export const PET_INTERACTION_ACTIONS = ['none', 'voice', 'openRecentChat', 'openHarness'] as const
+export type PetInteractionAction = (typeof PET_INTERACTION_ACTIONS)[number]
 
 export interface PetSettings {
   themeId: string
+  accentColor: string
   reducedMotion: boolean
   bubbleVisible: boolean
   walkingEnabled: boolean
@@ -25,7 +29,11 @@ export interface PetSettings {
   teleportShortcut: string
   teleportOpensRecentChat: boolean
   scale: number
-  activationGesture: 'doubleClick' | 'longPress'
+  doubleClickAction: PetInteractionAction
+  longPressAction: PetInteractionAction
+  voiceInputEnabled: boolean
+  voiceProvider: 'system'
+  voiceLanguage: 'system' | 'zh-CN' | 'en-US'
   locale: 'system' | 'zh-CN' | 'en'
   autoLaunch: boolean
   menuActions: string[]
@@ -54,6 +62,7 @@ const DEFAULT_PET_STATS: PetStats = { treasuresFound: 0 }
 
 export const DEFAULT_PET_SETTINGS: PetSettings = {
   themeId: 'whale-default',
+  accentColor: DEFAULT_PET_ACCENT_COLOR,
   reducedMotion: false,
   bubbleVisible: true,
   walkingEnabled: true,
@@ -68,7 +77,11 @@ export const DEFAULT_PET_SETTINGS: PetSettings = {
   teleportShortcut: 'CommandOrControl+Shift+P',
   teleportOpensRecentChat: false,
   scale: 1,
-  activationGesture: 'longPress',
+  doubleClickAction: 'openHarness',
+  longPressAction: 'voice',
+  voiceInputEnabled: true,
+  voiceProvider: 'system',
+  voiceLanguage: 'system',
   locale: 'system',
   autoLaunch: false,
   menuActions: [...PET_MENU_ACTIONS],
@@ -104,8 +117,17 @@ export function resolvePetSettings(input: Partial<PetSettings> = {}): PetSetting
   const movementLevel = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value)
     ? Math.round(Math.min(100, Math.max(0, value)))
     : fallback
+  const legacy = input as Partial<PetSettings> & { activationGesture?: 'doubleClick' | 'longPress' }
+  const action = (value: unknown): value is PetInteractionAction => PET_INTERACTION_ACTIONS.includes(value as PetInteractionAction)
+  const doubleClickAction = action(input.doubleClickAction) ? input.doubleClickAction : DEFAULT_PET_SETTINGS.doubleClickAction
+  const longPressAction = action(input.longPressAction)
+    ? input.longPressAction
+    : legacy.voiceInputEnabled === false && legacy.activationGesture === 'longPress'
+      ? 'openHarness'
+      : DEFAULT_PET_SETTINGS.longPressAction
   return {
     themeId: typeof input.themeId === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.themeId) ? input.themeId : DEFAULT_PET_SETTINGS.themeId,
+    accentColor: typeof input.accentColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.accentColor) ? input.accentColor.toLowerCase() : DEFAULT_PET_SETTINGS.accentColor,
     reducedMotion: input.reducedMotion === true,
     bubbleVisible: input.bubbleVisible !== false,
     walkingEnabled: input.walkingEnabled !== false,
@@ -122,9 +144,11 @@ export function resolvePetSettings(input: Partial<PetSettings> = {}): PetSetting
       : DEFAULT_PET_SETTINGS.teleportShortcut,
     teleportOpensRecentChat: input.teleportOpensRecentChat === true,
     scale,
-    activationGesture: input.activationGesture === 'doubleClick' || input.activationGesture === 'longPress'
-      ? input.activationGesture
-      : DEFAULT_PET_SETTINGS.activationGesture,
+    doubleClickAction,
+    longPressAction,
+    voiceInputEnabled: doubleClickAction === 'voice' || longPressAction === 'voice',
+    voiceProvider: 'system',
+    voiceLanguage: input.voiceLanguage === 'zh-CN' || input.voiceLanguage === 'en-US' ? input.voiceLanguage : 'system',
     locale: 'system',
     autoLaunch: input.autoLaunch === true,
     menuActions,

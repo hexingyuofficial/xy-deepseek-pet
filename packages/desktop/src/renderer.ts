@@ -1,4 +1,4 @@
-import type { PetQuestionAnswer, PetSessionActivity, PetSessionSummary, PetSnapshot, PetState } from '@xy-deepseek-pet/protocol'
+import type { PetChatImage, PetQuestionAnswer, PetSessionActivity, PetSessionSummary, PetSnapshot, PetState } from '@xy-deepseek-pet/protocol'
 import type { LoadedTheme, ThemeAnimation } from './theme.js'
 import {
   completionFollowupState,
@@ -10,15 +10,25 @@ import {
   turnActivityDecision,
 } from './animation-policy.js'
 import { animationFrameIndices, nextAnimationDeadline, pacedFrameDuration, visibleAnimationFrameIndices } from './animation-timing.js'
-import { bubbleDragLimits, constrainBubbleOffset, petPlacementAdjusted } from './bubble-position.js'
+import { bubbleDragLimits, bubbleSideForCenter, constrainBubbleOffset, petPlacementAdjusted, type BubbleSide } from './bubble-position.js'
 import { shouldSubmitComposer } from './composer-input.js'
-import { preservesActiveAnimation, shouldDismissComposer, shouldPausePointerChase } from './interaction-policy.js'
+import { chatTextWithPaths, fileToBase64, imageMediaType, MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES, mergeComposerPaths } from './composer-attachments.js'
+import { canStartVoiceInput, preservesActiveAnimation, shouldDismissComposer, shouldPausePointerChase, shouldRecoverLostPointerRelease, VOICE_LONG_PRESS_MS } from './interaction-policy.js'
 import { renderMarkdown, renderMarkdownInline } from './markdown.js'
 import { shouldAutoSubmitChoices } from './question-policy.js'
 import { displaySessionTitle, formatSessionAge } from './session-display.js'
-import { bubbleSessions, recentReplyableSessions, replyableSessions, sessionActivitiesForPanel } from './session-selection.js'
+import {
+  bubbleSessions,
+  recentReplyableSessions,
+  replyableSessions,
+  sessionActivitiesForPanel,
+  sessionBubbleDismissal,
+  shouldReleaseSessionBubbleDismissal,
+  type SessionBubbleDismissal,
+} from './session-selection.js'
 import { resolveSubmenuPosition } from './submenu-position.js'
 import { themeDisplayBox } from './theme-layout.js'
+import { MAX_VOICE_SECONDS, mediaBlobToVoiceWav, VOICE_CUE_FILES } from './voice-audio.js'
 import type { WindowDock } from './window-layout.js'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#pet-canvas')!
@@ -35,7 +45,9 @@ let snapshot: PetSnapshot
 let reducedMotion = false
 let bubbleVisible = true
 let scale = 1
-let activationGesture: 'doubleClick' | 'longPress' = 'longPress'
+let doubleClickAction: 'none' | 'voice' | 'openRecentChat' | 'openHarness' = 'openHarness'
+let longPressAction: 'none' | 'voice' | 'openRecentChat' | 'openHarness' = 'voice'
+let voiceInputEnabled = true
 let serviceOwned = false
 let walkingEnabled = true
 let mouseChaseEnabled = false
@@ -53,9 +65,15 @@ let dragLastX = 0
 let lastDragEndedAt = 0
 let targetSessionId: string | undefined
 const composerDrafts = new Map<string, string>()
+interface ComposerAttachmentDraft {
+  paths: string[]
+  images: Array<PetChatImage & { bytes: number }>
+}
+const composerAttachments = new Map<string, ComposerAttachmentDraft>()
 const questionDrafts = new Map<string, Map<string, { selected: Set<string>; custom: string }>>()
 let focusComposerSessionId: string | undefined
-const dismissedSessionIds = new Set<string>()
+let pendingComposePaths: string[] = []
+const dismissedSessionIds = new Map<string, SessionBubbleDismissal>()
 let composerSubmittingSessionId: string | undefined
 let questionSubmittingRequestId: string | undefined
 let pressedPointerId: number | undefined
@@ -63,6 +81,24 @@ let pressGeneration: number | undefined
 let pressReleased = true
 let pressAnimationComplete = false
 let longPressTimer: number | undefined
+let longPressTriggered = false
+let voiceRequested = false
+let voiceStartPromise: Promise<void> | undefined
+let voiceFinishPromise: Promise<void> | undefined
+let voiceStopMode: 'release' | 'toggle' | undefined
+let voiceSessionId: string | undefined
+let voiceStartedAt = 0
+let voiceStatusTimer: number | undefined
+let voiceComposerFeedback: { sessionId: string; message: string } | undefined
+let voiceRecording: {
+  recorder: MediaRecorder
+  stream: MediaStream
+  chunks: Blob[]
+  mimeType: string
+  sessionId: string
+  timeout: number
+  stopped: Promise<Blob>
+} | undefined
 const imageCache = new Map<string, Promise<HTMLImageElement>>()
 const sheetFrameIndicesCache = new WeakMap<ThemeAnimation, Promise<number[]>>()
 let activeErrorSequence: ReturnType<typeof selectErrorSequence> | undefined
@@ -72,9 +108,12 @@ let completionPreloadTimer: number | undefined
 const observedTurns = new Map<string, number>()
 let bubbleClickTimer: number | undefined
 let bubbleOffset = { x: 0, y: 0 }
+let bubbleSide: BubbleSide | 'auto' = 'auto'
+let bubbleLayoutAdjustmentPending = false
 let bubbleDrag: {
   pointerId: number
   startClient: { x: number; y: number }
+  startRect: { left: number; top: number; width: number; height: number }
   startOffset: { x: number; y: number }
   active: boolean
 } | undefined
@@ -168,10 +207,12 @@ const messages = {
     moreSessions: '个其他会话', acknowledge: '标记为已读', usingTool: '调用工具：', thinkingNow: '正在思考…', done: '已完成',
     disconnected: '与 Harness 的连接已断开。请右键选择“重新连接”；仍未恢复，请重启 Harness。', reconnect: '重新连接',
     composerLabel: '回复 Harness 会话', messageLabel: '消息', messagePlaceholder: '输入回复，按 Enter 发送',
+    removeAttachment: '移除附件', imageTooLarge: '图片总大小不能超过 8 MiB', tooManyImages: '最多添加 4 张图片', unsupportedDrop: '这个文件没有可用的本地路径',
     waitingAnswer: '等待你回答问题', choiceRequired: '需要你选择', approvalRequired: '需要你审批：',
     allowOnce: '本次允许', reject: '拒绝',
     chooseOne: '请选择一项', chooseMultiple: '可选择多项', customAnswer: '其他答案', submitChoices: '确认选择', submittingChoices: '正在提交…',
     activity: '会话进度', pressEnter: '发送', openWeb: '网页', closeDetails: '关闭', bubbleHint: '详情', chaseMouse: '追逐鼠标',
+    recordingVoice: '正在录音', recognizingVoice: '正在识别…', noSpeech: '没有听到语音，请再试一次',
   },
   en: {
     openClient: 'Open Harness', reply: 'Reply to latest session', reaction: 'Play reaction', size: 'Size', themesSettings: 'Open settings',
@@ -179,10 +220,12 @@ const messages = {
     moreSessions: 'more sessions', acknowledge: 'Mark as read', usingTool: 'Using tool: ', thinkingNow: 'Thinking…', done: 'Done',
     disconnected: 'Disconnected from Harness. Right-click and choose “Reconnect”; if it still fails, restart Harness.', reconnect: 'Reconnect',
     composerLabel: 'Reply to Harness session', messageLabel: 'Message', messagePlaceholder: 'Type a reply and press Enter to send',
+    removeAttachment: 'Remove attachment', imageTooLarge: 'Images cannot exceed 8 MiB in total', tooManyImages: 'Attach up to 4 images', unsupportedDrop: 'This file has no usable local path',
     waitingAnswer: 'Waiting for your answer', choiceRequired: 'Choice required', approvalRequired: 'Approval required: ',
     allowOnce: 'Allow once', reject: 'Reject',
     chooseOne: 'Choose one', chooseMultiple: 'Choose any', customAnswer: 'Other answer', submitChoices: 'Submit choices', submittingChoices: 'Submitting…',
     activity: 'Session activity', pressEnter: 'Send', openWeb: 'Web', closeDetails: 'Close', bubbleHint: 'Details', chaseMouse: 'Chase pointer',
+    recordingVoice: 'Recording', recognizingVoice: 'Recognizing…', noSpeech: 'No speech detected. Try again.',
   },
 } as const
 
@@ -213,7 +256,7 @@ function applyWindowDock(next: WindowDock): void {
 }
 
 function applyPetStageOffset(offset: { x: number; y: number }): void {
-  if (petPlacementAdjusted(petStageOffset, offset)) clearBubbleOffset()
+  if (petPlacementAdjusted(petStageOffset, offset) && !bubbleLayoutAdjustmentPending) clearBubbleOffset()
   petStageOffset = offset
   const box = themeDisplayBox(theme.manifest.canvas)
   const width = box.width * scale
@@ -222,6 +265,8 @@ function applyPetStageOffset(offset: { x: number; y: number }): void {
   document.documentElement.style.setProperty('--pet-stage-x', `${offset.x}px`)
   document.documentElement.style.setProperty('--pet-stage-y', `${offset.y}px`)
   document.documentElement.style.setProperty('--pet-stage-center-x', `${offset.x + width / 2}px`)
+  document.documentElement.style.setProperty('--pet-stage-center-y', `${offset.y + height / 2}px`)
+  document.documentElement.style.setProperty('--pet-stage-right', `${offset.x + width}px`)
   document.documentElement.dataset.petVerticalDock = offset.y <= availableHeight / 2 ? 'top' : 'bottom'
   queueMicrotask(clampBubbleOffset)
 }
@@ -233,6 +278,15 @@ function applyBubbleOffset(offset: { x: number; y: number }): void {
 }
 
 function clearBubbleOffset(): void {
+  bubbleSide = 'auto'
+  delete document.documentElement.dataset.bubbleSide
+  applyBubbleOffset({ x: 0, y: 0 })
+}
+
+function applyBubbleSide(side: BubbleSide): void {
+  if (bubbleSide === side) return
+  bubbleSide = side
+  document.documentElement.dataset.bubbleSide = side
   applyBubbleOffset({ x: 0, y: 0 })
 }
 
@@ -613,6 +667,176 @@ function clearLongPressTimer(): void {
   longPressTimer = undefined
 }
 
+function playVoiceCue(kind: 'start' | 'stop'): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+    const audio = new Audio(new URL(`./resources/voice/${VOICE_CUE_FILES[kind]}`, window.location.href).toString())
+    audio.preload = 'auto'
+    audio.volume = 0.8
+    audio.addEventListener('ended', () => resolve(), { once: true })
+    audio.addEventListener('error', () => {
+      console.warn(`Voice ${kind} cue could not be loaded.`)
+      resolve()
+    }, { once: true })
+    void audio.play().catch((error) => {
+      console.warn(`Voice ${kind} cue could not be played: ${error instanceof Error ? error.message : String(error)}`)
+      resolve()
+    })
+    } catch (error) {
+      console.warn(`Voice ${kind} cue could not be created: ${error instanceof Error ? error.message : String(error)}`)
+      resolve()
+    }
+  })
+}
+
+function syncVoiceComposerStatus(): void {
+  if (!voiceSessionId || targetSessionId !== voiceSessionId) return
+  const input = bubbleStack.querySelector<HTMLTextAreaElement>(`.session-bubble[data-session-id="${CSS.escape(voiceSessionId)}"] .session-composer-input`)
+  if (!input) return
+  const seconds = Math.max(0, (Date.now() - voiceStartedAt) / 1_000).toFixed(1)
+  input.placeholder = voiceRequested || voiceRecording || voiceStartPromise ? `${t('recordingVoice')} · ${seconds}s` : t('recognizingVoice')
+  input.classList.add('is-recording')
+}
+
+async function beginVoiceRecording(stopMode: 'release' | 'toggle'): Promise<void> {
+  if (voiceStartPromise || voiceRecording || voiceFinishPromise) return
+  const session = recentReplyableSessions(snapshot, 1)[0]
+  if (!session) {
+    voiceRequested = false
+    void window.harnessPet.showVoiceNotice('session')
+    return
+  }
+  voiceStopMode = stopMode
+  voiceComposerFeedback = undefined
+  voiceSessionId = session.id
+  voiceStartedAt = Date.now()
+  voiceRequested = true
+  openComposer(session, false)
+  syncVoiceComposerStatus()
+  voiceStartPromise = (async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Media recording is unavailable.')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { ideal: 'default' },
+          channelCount: { ideal: 1 },
+          // macOS already applies its own microphone processing. Chromium's
+          // second pass can suppress quiet, close-range speech on some Macs.
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      })
+      if (!voiceRequested) {
+        stream.getTracks().forEach((track) => track.stop())
+        void window.harnessPet.showVoiceNotice('ready')
+        return
+      }
+      const preferredType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : ''
+      const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined)
+      const chunks: Blob[] = []
+      let resolveStopped!: (blob: Blob) => void
+      let rejectStopped!: (error: Error) => void
+      const stopped = new Promise<Blob>((resolve, reject) => { resolveStopped = resolve; rejectStopped = reject })
+      recorder.addEventListener('dataavailable', (event) => { if (event.data.size > 0) chunks.push(event.data) })
+      recorder.addEventListener('error', () => rejectStopped(new Error('Media recording failed.')), { once: true })
+      recorder.addEventListener('stop', () => resolveStopped(new Blob(chunks, { type: recorder.mimeType || preferredType || 'audio/webm' })), { once: true })
+      await playVoiceCue('start')
+      if (!voiceRequested) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      recorder.start(200)
+      voiceRecording = {
+        recorder,
+        stream,
+        chunks,
+        mimeType: recorder.mimeType,
+        sessionId: session.id,
+        timeout: window.setTimeout(() => void finishVoiceRecording(false), MAX_VOICE_SECONDS * 1000),
+        stopped,
+      }
+      syncVoiceComposerStatus()
+      if (voiceStatusTimer !== undefined) window.clearInterval(voiceStatusTimer)
+      voiceStatusTimer = window.setInterval(syncVoiceComposerStatus, 100)
+    } catch {
+      voiceRequested = false
+      voiceStopMode = undefined
+      voiceSessionId = undefined
+      renderBubbles()
+      void window.harnessPet.showVoiceNotice('microphone')
+    }
+  })().finally(() => { voiceStartPromise = undefined })
+  await voiceStartPromise
+}
+
+async function finishVoiceRecording(cancelled: boolean): Promise<void> {
+  voiceRequested = false
+  if (voiceFinishPromise) return voiceFinishPromise
+  voiceFinishPromise = (async () => {
+    if (voiceStartPromise) await voiceStartPromise
+    const recording = voiceRecording
+    voiceRecording = undefined
+    if (!recording) return
+    if (voiceStatusTimer !== undefined) window.clearInterval(voiceStatusTimer)
+    voiceStatusTimer = undefined
+    syncVoiceComposerStatus()
+    window.clearTimeout(recording.timeout)
+    try {
+      if (recording.recorder.state !== 'inactive') {
+        try { recording.recorder.requestData() } catch { /* stop still flushes the final recorder chunk */ }
+        recording.recorder.stop()
+        void playVoiceCue('stop')
+      }
+      const blob = await recording.stopped
+      if (cancelled) return
+      if (blob.size === 0) throw new Error('No audio was recorded.')
+      const track = recording.stream.getAudioTracks()[0]
+      const settings = track?.getSettings()
+      const result = await window.harnessPet.transcribeVoice(await mediaBlobToVoiceWav(blob), track ? {
+        label: track.label,
+        muted: track.muted,
+        enabled: track.enabled,
+        readyState: track.readyState,
+        sampleRate: settings?.sampleRate,
+        channelCount: settings?.channelCount,
+        autoGainControl: settings?.autoGainControl,
+        echoCancellation: settings?.echoCancellation,
+        noiseSuppression: settings?.noiseSuppression,
+      } : undefined)
+      if (!result.ok || !result.text) {
+        if (result.code === 'noSpeech') {
+          voiceComposerFeedback = { sessionId: recording.sessionId, message: t('noSpeech') }
+          renderBubbles()
+        } else {
+          void window.harnessPet.showVoiceNotice('unavailable', result.detail)
+        }
+        return
+      }
+      const session = replyableSessions(snapshot).find((candidate) => candidate.id === recording.sessionId)
+        ?? recentReplyableSessions(snapshot, 1)[0]
+      if (!session) {
+        void window.harnessPet.showVoiceNotice('session')
+        return
+      }
+      const existing = composerDrafts.get(session.id)?.trim()
+      composerDrafts.set(session.id, existing ? `${existing} ${result.text}` : result.text)
+      openComposer(session)
+    } catch (error) {
+      if (!cancelled) void window.harnessPet.showVoiceNotice('unavailable', error instanceof Error ? error.message : String(error))
+    } finally {
+      recording.stream.getTracks().forEach((track) => track.stop())
+    }
+  })().finally(() => {
+    voiceFinishPromise = undefined
+    voiceStopMode = undefined
+    voiceSessionId = undefined
+    renderBubbles()
+  })
+  return voiceFinishPromise
+}
+
 function stateLabel(state: PetState): string {
   return stateMessages[locale][state]
 }
@@ -905,12 +1129,22 @@ function renderBubbles(): void {
         input.maxLength = 8000
         input.rows = 1
         input.value = composerDrafts.get(session.id) ?? ''
-        input.placeholder = t('messagePlaceholder')
+        input.placeholder = voiceSessionId === session.id
+          ? (voiceRequested || voiceRecording || voiceStartPromise ? t('recordingVoice') : t('recognizingVoice'))
+          : voiceComposerFeedback?.sessionId === session.id ? voiceComposerFeedback.message : t('messagePlaceholder')
+        input.classList.toggle('is-recording', voiceSessionId === session.id)
         input.setAttribute('aria-label', `${t('composerLabel')}：${displaySessionTitle(session.title, locale)}`)
         input.disabled = composerSubmittingSessionId === session.id
         input.addEventListener('input', () => {
+          if (voiceComposerFeedback?.sessionId === session.id) voiceComposerFeedback = undefined
           composerDrafts.set(session.id, input.value)
           resizeComposer(input)
+        })
+        input.addEventListener('paste', (event) => {
+          const files = Array.from(event.clipboardData?.files ?? [])
+          if (!files.length) return
+          event.preventDefault()
+          void addComposerFiles(session.id, files)
         })
         input.addEventListener('keydown', (event) => {
           if (event.key === 'Escape') {
@@ -923,11 +1157,13 @@ function renderBubbles(): void {
           event.preventDefault()
           void submitComposer(session.id, input)
         })
-        const enterHint = document.createElement('span')
+        const enterHint = document.createElement('button')
+        enterHint.type = 'button'
         enterHint.className = 'session-enter-hint'
         enterHint.innerHTML = '<span class="session-action-icon">↵</span>'
         enterHint.dataset.tooltip = t('pressEnter')
-        enterHint.setAttribute('aria-hidden', 'true')
+        enterHint.setAttribute('aria-label', t('pressEnter'))
+        enterHint.addEventListener('click', () => { void submitComposer(session.id, input) })
         const open = document.createElement('button')
         open.type = 'button'
         open.className = 'session-open-client'
@@ -941,7 +1177,37 @@ function renderBubbles(): void {
           closeComposer()
         })
         form.addEventListener('submit', (event) => { event.preventDefault(); void submitComposer(session.id, input) })
+        let dragDepth = 0
+        composer.addEventListener('dragenter', (event) => {
+          if (!event.dataTransfer?.types.includes('Files')) return
+          event.preventDefault()
+          dragDepth += 1
+          composer.classList.add('is-dragover')
+          window.harnessPet.setChasePaused(true)
+        })
+        composer.addEventListener('dragover', (event) => {
+          if (!event.dataTransfer?.types.includes('Files')) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+        })
+        composer.addEventListener('dragleave', () => {
+          dragDepth = Math.max(0, dragDepth - 1)
+          if (dragDepth === 0) {
+            composer.classList.remove('is-dragover')
+            window.harnessPet.setChasePaused(false)
+          }
+        })
+        composer.addEventListener('drop', (event) => {
+          if (!event.dataTransfer?.files.length) return
+          event.preventDefault()
+          dragDepth = 0
+          composer.classList.remove('is-dragover')
+          window.harnessPet.setChasePaused(false)
+          void addComposerFiles(session.id, Array.from(event.dataTransfer.files))
+        })
         composer.append(input, enterHint, open)
+        const attachments = createComposerAttachments(session.id)
+        if (attachments) form.append(attachments)
         form.append(composer)
       }
       bubble.append(form)
@@ -951,9 +1217,12 @@ function renderBubbles(): void {
         if (input) resizeComposer(input)
         timeline.scrollTop = previousTimelineAtEnd ? timeline.scrollHeight : previousTimelineScrollTop
         if (input && (focusComposerSessionId === session.id || restoreFocusSessionId === session.id)) {
-          input.focus()
-          if (selectionStart !== undefined && selectionEnd !== undefined) input.setSelectionRange(selectionStart, selectionEnd)
-          focusComposerSessionId = undefined
+          if (focusComposerSessionId === session.id) {
+            void focusComposerInput(session.id, input)
+          } else {
+            input.focus()
+            if (selectionStart !== undefined && selectionEnd !== undefined) input.setSelectionRange(selectionStart, selectionEnd)
+          }
         }
         clampBubbleOffset()
       })
@@ -1007,6 +1276,24 @@ function renderBubbles(): void {
   }
   queueMicrotask(clampBubbleOffset)
 }
+
+async function focusComposerInput(sessionId: string, input?: HTMLTextAreaElement): Promise<void> {
+  if (focusComposerSessionId !== sessionId || targetSessionId !== sessionId) return
+  await window.harnessPet.activateForInput()
+  if (focusComposerSessionId !== sessionId || targetSessionId !== sessionId) return
+  const current = input?.isConnected
+    ? input
+    : bubbleStack.querySelector<HTMLTextAreaElement>(`.session-bubble[data-session-id="${CSS.escape(sessionId)}"] .session-composer-input`)
+  if (!current) return
+  current.focus({ preventScroll: true })
+  current.setSelectionRange(current.value.length, current.value.length)
+  if (document.hasFocus() && document.activeElement === current) focusComposerSessionId = undefined
+}
+
+window.addEventListener('focus', () => {
+  if (!focusComposerSessionId) return
+  void focusComposerInput(focusComposerSessionId)
+})
 
 function createApprovalActions(session: PetSessionSummary): HTMLDivElement {
   const actions = document.createElement('div')
@@ -1073,10 +1360,9 @@ function applySnapshot(next: PetSnapshot): void {
   for (const requestId of questionDrafts.keys()) {
     if (!liveQuestionIds.has(requestId) && requestId !== questionSubmittingRequestId) questionDrafts.delete(requestId)
   }
-  for (const sessionId of dismissedSessionIds) {
-    const previous = snapshot?.sessions?.find((session) => session.id === sessionId)
+  for (const [sessionId, dismissal] of dismissedSessionIds) {
     const current = next.sessions?.find((session) => session.id === sessionId)
-    if (!current || !previous || current.state !== previous.state || current.text !== previous.text || current.turn !== previous.turn) {
+    if (shouldReleaseSessionBubbleDismissal(dismissal, current)) {
       dismissedSessionIds.delete(sessionId)
     }
   }
@@ -1092,6 +1378,7 @@ function applySnapshot(next: PetSnapshot): void {
   if (activity.remember && next.sessionId && next.turn !== undefined) observedTurns.set(next.sessionId, next.turn)
   snapshot = next
   renderStatus()
+  if (pendingComposePaths.length && replyableSessions(snapshot).length) openComposerWithFiles(pendingComposePaths)
   const holdingPress = pressedPointerId !== undefined && dragDistance <= 4 && !preservesActiveAnimation(next.state)
   const animationPreviousState = activity.enterThinking ? undefined : previousState
   if ((stateChanged || activity.enterThinking) && shouldPlayStateChange(
@@ -1125,14 +1412,128 @@ function applyThemeLayout(next: LoadedTheme): void {
   }
 }
 
+function notifyMissingSession(): void {
+  void window.harnessPet.showVoiceNotice('session')
+}
+
+function attachmentDraft(sessionId: string): ComposerAttachmentDraft {
+  const existing = composerAttachments.get(sessionId)
+  if (existing) return existing
+  const created = { paths: [], images: [] }
+  composerAttachments.set(sessionId, created)
+  return created
+}
+
+function setComposerFeedback(sessionId: string, message: string): void {
+  voiceComposerFeedback = { sessionId, message }
+  renderBubbles()
+}
+
+async function addComposerFiles(sessionId: string, files: readonly File[]): Promise<void> {
+  const draft = attachmentDraft(sessionId)
+  const paths: string[] = []
+  let imageBytes = draft.images.reduce((total, image) => total + image.bytes, 0)
+  for (const file of files) {
+    const mediaType = imageMediaType(file)
+    if (mediaType) {
+      if (draft.images.length >= MAX_CHAT_IMAGES) {
+        setComposerFeedback(sessionId, t('tooManyImages'))
+        return
+      }
+      if (imageBytes + file.size > MAX_CHAT_IMAGE_BYTES) {
+        setComposerFeedback(sessionId, t('imageTooLarge'))
+        return
+      }
+      const data = await fileToBase64(file)
+      if (!draft.images.some((image) => image.name === file.name && image.bytes === file.size && image.data === data)) {
+        draft.images.push({ name: file.name || `image-${draft.images.length + 1}`, mediaType, data, bytes: file.size })
+        imageBytes += file.size
+      }
+      continue
+    }
+    let path = ''
+    try {
+      path = window.harnessPet.pathForFile(file)
+    } catch {
+      // Clipboard-created files may not have a native path.
+    }
+    if (path) paths.push(path)
+  }
+  draft.paths = mergeComposerPaths(draft.paths, paths)
+  if (!draft.images.length && !draft.paths.length) {
+    setComposerFeedback(sessionId, t('unsupportedDrop'))
+    return
+  }
+  voiceComposerFeedback = undefined
+  focusComposerSessionId = sessionId
+  renderBubbles()
+}
+
+function createComposerAttachments(sessionId: string): HTMLElement | undefined {
+  const draft = composerAttachments.get(sessionId)
+  if (!draft || (!draft.paths.length && !draft.images.length)) return undefined
+  const tray = document.createElement('div')
+  tray.className = 'composer-attachments'
+  const entries = [
+    ...draft.images.map((image, index) => ({ kind: 'image' as const, index, label: image.name, image })),
+    ...draft.paths.map((path, index) => ({ kind: 'path' as const, index, label: path.split(/[\\/]/).pop() || path })),
+  ]
+  for (const entry of entries) {
+    const chip = document.createElement('span')
+    chip.className = `composer-attachment kind-${entry.kind}`
+    if (entry.kind === 'image') {
+      const preview = document.createElement('img')
+      preview.src = `data:${entry.image.mediaType};base64,${entry.image.data}`
+      preview.alt = ''
+      chip.append(preview)
+    }
+    const label = document.createElement('span')
+    label.className = 'composer-attachment-label'
+    label.textContent = entry.label
+    label.title = entry.kind === 'path' ? (draft.paths[entry.index] ?? entry.label) : entry.label
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'composer-attachment-remove'
+    remove.textContent = '×'
+    remove.setAttribute('aria-label', `${t('removeAttachment')}：${entry.label}`)
+    remove.addEventListener('click', () => {
+      if (entry.kind === 'image') draft.images.splice(entry.index, 1)
+      else draft.paths.splice(entry.index, 1)
+      focusComposerSessionId = sessionId
+      renderBubbles()
+    })
+    chip.append(label, remove)
+    tray.append(chip)
+  }
+  return tray
+}
+
 function openComposer(session?: PetSessionSummary, focus = true): void {
   const selected = session ?? replyableSessions(snapshot)[0]
-  if (!selected) return
+  if (!selected) {
+    notifyMissingSession()
+    return
+  }
   dismissedSessionIds.delete(selected.id)
   targetSessionId = selected.id
   if (focus) focusComposerSessionId = selected.id
   setMenuOpen(false)
   renderBubbles()
+}
+
+function openComposerWithFiles(paths: readonly string[]): void {
+  const valid = paths.filter((path) => path.length > 0 && path.length <= 4096).slice(0, 8)
+  if (!valid.length) return
+  const selected = replyableSessions(snapshot)[0]
+  if (!selected) {
+    pendingComposePaths = valid
+    notifyMissingSession()
+    return
+  }
+  const draft = attachmentDraft(selected.id)
+  draft.paths = mergeComposerPaths(draft.paths, valid)
+  pendingComposePaths = []
+  openComposer(selected, true)
 }
 
 function closeComposer(): void {
@@ -1142,7 +1543,8 @@ function closeComposer(): void {
 }
 
 function dismissSessionBubble(sessionId: string): void {
-  dismissedSessionIds.add(sessionId)
+  const session = replyableSessions(snapshot).find((candidate) => candidate.id === sessionId)
+  if (session) dismissedSessionIds.set(sessionId, sessionBubbleDismissal(session))
   if (targetSessionId === sessionId) {
     targetSessionId = undefined
     focusComposerSessionId = undefined
@@ -1257,7 +1659,11 @@ document.addEventListener('pointerdown', (event) => {
     setMenuOpen(false)
   }
   const activeComposer = bubbleStack.querySelector('.session-bubble.is-expanded')
-  if (shouldDismissComposer(targetSessionId, Boolean(activeComposer?.contains(target)))) {
+  const voiceGestureKeepsComposerOpen = petStage.contains(target)
+    && targetSessionId !== undefined
+    && targetSessionId === voiceSessionId
+    && Boolean(voiceRequested || voiceRecording || voiceStartPromise || voiceFinishPromise)
+  if (shouldDismissComposer(targetSessionId, Boolean(activeComposer?.contains(target)), voiceGestureKeepsComposerOpen)) {
     const dismissedSessionId = targetSessionId
     window.requestAnimationFrame(() => {
       if (targetSessionId === dismissedSessionId) closeComposer()
@@ -1275,9 +1681,11 @@ function bubbleDragHandle(target: Element): Element | undefined {
 
 bubbleStack.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || !bubbleDragHandle(event.target as Element)) return
+  const rect = bubbleStack.getBoundingClientRect()
   bubbleDrag = {
     pointerId: event.pointerId,
     startClient: { x: event.clientX, y: event.clientY },
+    startRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
     startOffset: bubbleOffset,
     active: false,
   }
@@ -1298,10 +1706,28 @@ document.addEventListener('pointermove', (event) => {
     bubbleClickTimer = undefined
   }
   event.preventDefault()
-  clampBubbleOffset({
-    x: bubbleDrag.startOffset.x + delta.x,
-    y: bubbleDrag.startOffset.y + delta.y,
-  })
+  const desiredRect = {
+    left: bubbleDrag.startRect.left + delta.x,
+    top: bubbleDrag.startRect.top + delta.y,
+  }
+  applyBubbleSide(bubbleSideForCenter({
+    x: desiredRect.left + bubbleDrag.startRect.width / 2,
+    y: desiredRect.top + bubbleDrag.startRect.height / 2,
+  }, petStage.getBoundingClientRect()))
+  const rect = bubbleStack.getBoundingClientRect()
+  const baseRect = {
+    left: rect.left - bubbleOffset.x,
+    top: rect.top - bubbleOffset.y,
+    right: rect.right - bubbleOffset.x,
+    bottom: rect.bottom - bubbleOffset.y,
+  }
+  const box = themeDisplayBox(theme.manifest.canvas)
+  applyBubbleOffset(constrainBubbleOffset(
+    { x: desiredRect.left - baseRect.left, y: desiredRect.top - baseRect.top },
+    baseRect,
+    { width: window.innerWidth, height: window.innerHeight },
+    bubbleDragLimits({ width: box.width * scale, height: box.height * scale }),
+  ))
 })
 
 function finishBubbleDrag(event: PointerEvent): void {
@@ -1312,6 +1738,13 @@ function finishBubbleDrag(event: PointerEvent): void {
     if (bubbleStack.hasPointerCapture(event.pointerId)) bubbleStack.releasePointerCapture(event.pointerId)
     event.preventDefault()
     window.requestAnimationFrame(syncChasePause)
+    if (bubbleSide !== 'auto') {
+      bubbleLayoutAdjustmentPending = true
+      void window.harnessPet.setBubbleSide(bubbleSide).finally(() => {
+        bubbleLayoutAdjustmentPending = false
+        queueMicrotask(clampBubbleOffset)
+      })
+    }
   }
   bubbleDrag = undefined
 }
@@ -1331,17 +1764,45 @@ bubbleStack.addEventListener('dblclick', (event) => {
 
 window.addEventListener('blur', () => {
   setMenuOpen(false)
-  if (dragging) window.harnessPet.endDrag()
-  dragging = false
+  finishPetDrag(undefined, 'cancel')
   bubbleStack.classList.remove('is-dragging')
   bubbleDrag = undefined
-  pressedPointerId = undefined
-  clearLongPressTimer()
-  pressReleased = true
-  window.harnessPet.setChasePaused(false)
   ignoringWindowMouse = true
   window.harnessPet.setIgnoreMouseEvents(true)
 })
+
+function finishPetDrag(event: PointerEvent | undefined, reason: 'release' | 'cancel'): void {
+  if (!dragging) return
+  if (event && pressedPointerId !== undefined && event.pointerId !== pressedPointerId) return
+  const pointerId = pressedPointerId
+  const moved = dragDistance > 4
+  dragging = false
+  pressedPointerId = undefined
+  clearLongPressTimer()
+  if (pointerId !== undefined && petStage.hasPointerCapture(pointerId)) {
+    try { petStage.releasePointerCapture(pointerId) } catch { /* Capture may already be gone. */ }
+  }
+  // Transparent Electron windows can report a real mouse release as
+  // pointercancel/lostpointercapture (notably through remote desktop). Once
+  // recording has started, preserve the user's speech instead of silently
+  // discarding it because the pointer termination label was unreliable.
+  if (voiceStopMode === 'release') void finishVoiceRecording(false)
+  petStage.blur()
+  window.harnessPet.endDrag()
+  window.harnessPet.setChasePaused(false)
+  if (moved) {
+    lastDragEndedAt = Date.now()
+    dragFacing = undefined
+    pressReleased = true
+    if (!preservesActiveAnimation(snapshot.state)) playState(snapshot.state, snapshot.state)
+    return
+  }
+  if (reason === 'release' && !longPressTriggered) releasePress()
+  else {
+    pressReleased = true
+    if (!preservesActiveAnimation(snapshot.state)) playState(snapshot.state, snapshot.state)
+  }
+}
 
 petStage.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return
@@ -1352,26 +1813,42 @@ petStage.addEventListener('pointerdown', (event) => {
   dragLastX = event.screenX
   dragOrigin = { x: event.screenX, y: event.screenY }
   pressedPointerId = event.pointerId
+  longPressTriggered = false
   clearLongPressTimer()
   petStage.setPointerCapture(event.pointerId)
   window.harnessPet.beginDrag()
   if (!preservesActiveAnimation(snapshot.state)) playPress()
-  if (activationGesture === 'longPress') {
-    longPressTimer = window.setTimeout(() => {
-      longPressTimer = undefined
-      if (!dragging || dragDistance > 4 || pressedPointerId !== event.pointerId) return
-      void window.harnessPet.openClient(snapshot.sessionId)
-    }, 550)
-  }
+  longPressTimer = window.setTimeout(() => {
+    longPressTimer = undefined
+    if (!dragging || dragDistance > 4 || pressedPointerId !== event.pointerId) return
+    longPressTriggered = true
+    if (longPressAction === 'none') return
+    if (longPressAction === 'voice') {
+      if (canStartVoiceInput(snapshot.state, voiceInputEnabled, dragging, dragDistance)) void beginVoiceRecording('release')
+      return
+    }
+    if (longPressAction === 'openRecentChat') {
+      openComposer()
+      return
+    }
+    void window.harnessPet.openClient(snapshot.sessionId)
+  }, VOICE_LONG_PRESS_MS)
 })
 
 petStage.addEventListener('pointermove', (event) => {
   if (!dragging) return
+  if (shouldRecoverLostPointerRelease(dragging, event.buttons)) {
+    // Remote desktop software can resume with a new pointer ID after dropping
+    // pointerup. The button bitmask is the authoritative recovery signal.
+    finishPetDrag(undefined, 'release')
+    return
+  }
+  if (pressedPointerId !== undefined && event.pointerId !== pressedPointerId) return
   const horizontalDelta = event.screenX - dragOrigin.x
   const horizontalMovement = event.screenX - dragLastX
   dragLastX = event.screenX
   dragDistance = Math.max(dragDistance, Math.hypot(horizontalDelta, event.screenY - dragOrigin.y))
-  if (dragDistance > 4) clearLongPressTimer()
+  if (dragDistance > 4 && !longPressTriggered) clearLongPressTimer()
   const nextFacing = horizontalMovement < -1 ? 'left' : horizontalMovement > 1 ? 'right' : dragFacing
   if (dragDistance > 4 && nextFacing && nextFacing !== dragFacing) {
     dragFacing = nextFacing
@@ -1380,52 +1857,49 @@ petStage.addEventListener('pointermove', (event) => {
   window.harnessPet.dragTo()
 })
 
-petStage.addEventListener('pointerup', (event) => {
-  if (!dragging) return
-  dragging = false
-  pressedPointerId = undefined
-  clearLongPressTimer()
-  petStage.blur()
-  window.harnessPet.endDrag()
-  window.harnessPet.setChasePaused(false)
-  if (dragDistance > 4) {
-    lastDragEndedAt = Date.now()
-    dragFacing = undefined
-    if (!preservesActiveAnimation(snapshot.state)) playState(snapshot.state, snapshot.state)
-    return
-  }
-  releasePress()
-})
+document.addEventListener('pointerup', (event) => finishPetDrag(event, 'release'), true)
+document.addEventListener('pointercancel', (event) => finishPetDrag(event, 'cancel'), true)
+petStage.addEventListener('lostpointercapture', (event) => finishPetDrag(event, 'cancel'))
 
 petStage.addEventListener('dblclick', () => {
-  if (activationGesture !== 'doubleClick') return
   if (Date.now() - lastDragEndedAt < 500) return
+  if (doubleClickAction === 'none') return
+  if (doubleClickAction === 'voice') {
+    if (!voiceInputEnabled || preservesActiveAnimation(snapshot.state)) return
+    if (voiceRequested || voiceRecording || voiceStartPromise || voiceFinishPromise) void finishVoiceRecording(false)
+    else void beginVoiceRecording('toggle')
+    return
+  }
+  if (doubleClickAction === 'openRecentChat') {
+    openComposer()
+    return
+  }
   void window.harnessPet.openClient(snapshot.sessionId)
-})
-
-petStage.addEventListener('pointercancel', (event) => {
-  if (pressedPointerId !== event.pointerId) return
-  dragging = false
-  pressedPointerId = undefined
-  clearLongPressTimer()
-  petStage.blur()
-  pressReleased = true
-  window.harnessPet.endDrag()
-  window.harnessPet.setChasePaused(false)
-  if (!preservesActiveAnimation(snapshot.state)) playState(snapshot.state, snapshot.state)
 })
 
 async function submitComposer(sessionId: string, input: HTMLTextAreaElement): Promise<void> {
   if (composerSubmittingSessionId) return
-  const text = (composerDrafts.get(sessionId) ?? '').trim()
-  if (!text) return
+  if (voiceSessionId === sessionId && (voiceRequested || voiceRecording || voiceStartPromise || voiceFinishPromise)) {
+    await finishVoiceRecording(false)
+  }
+  const attachments = composerAttachments.get(sessionId)
+  const text = chatTextWithPaths(composerDrafts.get(sessionId) ?? '', attachments?.paths ?? [], locale)
+  const images = (attachments?.images ?? []).map(({ bytes: _bytes, ...image }) => image)
+  if (!text && !images.length) return
+  if (text.length > 8_000) {
+    setComposerFeedback(sessionId, locale === 'zh-CN' ? '消息和文件路径太长了' : 'The message and file paths are too long')
+    return
+  }
   composerSubmittingSessionId = sessionId
   input.disabled = true
   try {
-    const result = await window.harnessPet.submitChat(text, sessionId)
+    const result = await window.harnessPet.submitChat(text, sessionId, images)
     if (result.ok) {
       composerDrafts.delete(sessionId)
+      composerAttachments.delete(sessionId)
       closeComposer()
+    } else if (result.error) {
+      setComposerFeedback(sessionId, result.error)
     }
   } finally {
     composerSubmittingSessionId = undefined
@@ -1479,6 +1953,7 @@ document.addEventListener('keydown', (event) => {
 window.harnessPet.onSnapshot(applySnapshot)
 window.harnessPet.onTheme(applyTheme)
 window.harnessPet.onOpenChat(() => openComposer())
+window.harnessPet.onComposeFiles((paths) => openComposerWithFiles(paths))
 window.harnessPet.onServiceOwned((owned) => {
   serviceOwned = owned
   renderStatus()
@@ -1486,11 +1961,14 @@ window.harnessPet.onServiceOwned((owned) => {
 window.harnessPet.onWindowDock(applyWindowDock)
 window.harnessPet.onPetStageOffset(applyPetStageOffset)
 window.harnessPet.onPreferences((value) => {
+  document.documentElement.style.setProperty('--electric-blue', value.accentColor)
   reducedMotion = value.reducedMotion
   bubbleVisible = value.bubbleVisible
   scale = value.scale
   applyPetStageOffset(petStageOffset)
-  activationGesture = value.activationGesture
+  doubleClickAction = value.doubleClickAction
+  longPressAction = value.longPressAction
+  voiceInputEnabled = value.voiceInputEnabled
   walkingEnabled = value.walkingEnabled
   mouseChaseEnabled = value.mouseChaseEnabled
   locale = value.locale
@@ -1505,6 +1983,7 @@ const bootstrap = await window.harnessPet.getBootstrap()
 ignoringWindowMouse = true
 window.harnessPet.setIgnoreMouseEvents(true)
 theme = bootstrap.theme
+document.documentElement.style.setProperty('--electric-blue', bootstrap.preferences.accentColor)
 applyThemeLayout(theme)
 snapshot = bootstrap.snapshot
 if (snapshot.sessionId && snapshot.turn !== undefined && (snapshot.state === 'thinking' || snapshot.state === 'working' || snapshot.state === 'needsInput')) {
@@ -1513,7 +1992,9 @@ if (snapshot.sessionId && snapshot.turn !== undefined && (snapshot.state === 'th
 reducedMotion = bootstrap.reducedMotion
 bubbleVisible = bootstrap.bubbleVisible
 scale = bootstrap.scale
-activationGesture = bootstrap.activationGesture
+doubleClickAction = bootstrap.doubleClickAction
+longPressAction = bootstrap.longPressAction
+voiceInputEnabled = bootstrap.preferences.voiceInputEnabled
 serviceOwned = bootstrap.serviceOwned
 walkingEnabled = bootstrap.preferences.walkingEnabled
 mouseChaseEnabled = bootstrap.preferences.mouseChaseEnabled

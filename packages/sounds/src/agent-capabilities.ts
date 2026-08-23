@@ -26,7 +26,7 @@ export function registerSoundAgentCapabilities(ctx: Context, controller: SoundCo
   ctx.systemPrompt.section({
     name: 'tool:xy-deepseek-sounds',
     order: 146,
-    text: 'XY DeepSeek Sounds is installed. Use xy_pet_sounds when the user asks to inspect, enable, disable, select, or import task-complete/tool-success/tool-failure notification sounds. Import only a local audio file the user explicitly selected; sound settings also appear in Harness General settings.',
+    text: 'XY DeepSeek Sounds is installed. Use xy_pet_sounds when the user asks to inspect, enable, disable, select, or import task-complete/tool-success/tool-failure notification sounds. Import only a local audio file the user explicitly selected; sound settings also appear under Harness Settings > Plugins > Desktop pet.',
   })
   ctx.tools.register(defineTool({
     name: 'xy_pet_sounds',

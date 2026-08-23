@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boundedStatusText, consumePetSettingsUrl, initialSnapshot, isBridgeClientMessage, isBridgeServerMessage, petSettingsUrl, reducePetEvent } from './index.js'
+import { boundedStatusText, consumePetSettingsUrl, initialSnapshot, isBridgeClientMessage, isBridgeServerMessage, petSettingsUrl, reducePetEvent, stripThinkBlocks } from './index.js'
 
 describe('pet state reducer', () => {
   it('creates and consumes a settings deep link without dropping other URL state', () => {
@@ -28,8 +28,24 @@ describe('pet state reducer', () => {
     expect(boundedStatusText(`  hello\n  world ${'x'.repeat(400)}`)?.length).toBe(280)
   })
 
+  it('removes hidden think blocks without damaging ordinary angle brackets', () => {
+    expect(stripThinkBlocks('<think>private reasoning</think>收到')).toBe('收到')
+    expect(stripThinkBlocks('前文<think data-kind="reasoning">private</think>后文')).toBe('前文后文')
+    expect(stripThinkBlocks('2 < 3')).toBe('2 < 3')
+  })
+
+  it('hides an unfinished or fragmented think block while text streams', () => {
+    expect(stripThinkBlocks('<thi')).toBe('')
+    expect(stripThinkBlocks('<think>private')).toBe('')
+    expect(stripThinkBlocks('<think>private</think>public')).toBe('public')
+  })
+
   it('accepts targeted chat, acknowledgement, and bounded session summaries', () => {
     expect(isBridgeClientMessage({ type: 'chat', requestId: 'one', sessionId: 'session-one', text: 'hello' })).toBe(true)
+    expect(isBridgeClientMessage({
+      type: 'chat', requestId: 'image', sessionId: 'session-one', text: '',
+      images: [{ name: 'screen.png', mediaType: 'image/png', data: 'aGVsbG8=' }],
+    })).toBe(true)
     expect(isBridgeClientMessage({ type: 'acknowledge', sessionId: 'session-one' })).toBe(true)
     expect(isBridgeClientMessage({ type: 'approval-decision', requestId: 'approval-one', sessionId: 'session-one', outcome: 'allowed-once' })).toBe(true)
     expect(isBridgeClientMessage({
@@ -74,6 +90,14 @@ describe('pet state reducer', () => {
     ).toBe(true)
     expect(isBridgeServerMessage({ type: 'approval-result', requestId: 'approval-one', ok: true })).toBe(true)
     expect(isBridgeServerMessage({ type: 'question-result', requestId: 'question-one', ok: true })).toBe(true)
+  })
+
+  it('bounds image chat payloads before they reach Harness', () => {
+    expect(isBridgeClientMessage({
+      type: 'chat', requestId: 'bad-image', text: '',
+      images: [{ name: 'vector.svg', mediaType: 'image/svg+xml', data: 'PHN2Zz4=' }],
+    })).toBe(false)
+    expect(isBridgeClientMessage({ type: 'chat', requestId: 'empty', text: '', images: [] })).toBe(false)
   })
 
   it('rejects malformed or oversized question data', () => {

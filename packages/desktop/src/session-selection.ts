@@ -1,6 +1,29 @@
 import type { PetSessionActivity, PetSessionSummary, PetSnapshot } from '@xy-deepseek-pet/protocol'
 
 const passiveStates = new Set(['idle', 'sleep', 'walk'])
+const activeProgressStates = new Set(['thinking', 'working'])
+
+export interface SessionBubbleDismissal {
+  turn?: number
+  activeProgress: boolean
+}
+
+export function sessionBubbleDismissal(session: PetSessionSummary): SessionBubbleDismissal {
+  return {
+    ...(session.turn !== undefined ? { turn: session.turn } : {}),
+    activeProgress: activeProgressStates.has(session.state),
+  }
+}
+
+export function shouldReleaseSessionBubbleDismissal(
+  dismissal: SessionBubbleDismissal,
+  current: PetSessionSummary | undefined,
+): boolean {
+  if (!current) return true
+  if (dismissal.turn !== undefined && current.turn !== undefined && dismissal.turn !== current.turn) return true
+  if (dismissal.activeProgress) return !activeProgressStates.has(current.state)
+  return current.state === 'thinking' || current.state === 'working' || current.state === 'needsInput'
+}
 
 export function replyableSessions(snapshot: PetSnapshot): PetSessionSummary[] {
   if (snapshot.sessions?.length) return snapshot.sessions
@@ -24,7 +47,7 @@ export function recentReplyableSessions(snapshot: PetSnapshot, limit = 4): PetSe
 
 export function bubbleSessions(
   snapshot: PetSnapshot,
-  dismissedSessionIds: ReadonlySet<string>,
+  dismissedSessionIds: { has(sessionId: string): boolean },
   composerSessionId?: string,
 ): PetSessionSummary[] {
   return replyableSessions(snapshot).filter((session) => {

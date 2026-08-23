@@ -14665,6 +14665,7 @@ window.__ModuleLoader__.load({
     // src/settings-view.ts
     var import_react = __toESM(require("react"), 1);
     var CHANNELS = ["turnComplete", "toolSuccess", "toolFailure"];
+    var SOUND_FILE_DROP_EVENT = "xy-deepseek-sound-file-drop";
     function remoteValue(result) {
       if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
       return result.value;
@@ -14679,20 +14680,22 @@ window.__ModuleLoader__.load({
       return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh");
     }
     var copy = {
-      en: { title: "Sound notifications", mute: "Mute all", masterVolume: "Master volume", volume: "Volume", more: "More settings", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", drop: "Drop your sound here", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", custom: "Custom", behavior: "Behavior", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
-      zh: { title: "\u63D0\u793A\u97F3", mute: "\u5168\u90E8\u9759\u97F3", masterVolume: "\u603B\u4F53\u97F3\u91CF", volume: "\u97F3\u91CF", more: "\u66F4\u591A\u8BBE\u7F6E", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", drop: "\u62D6\u5165\u4F60\u559C\u6B22\u7684\u58F0\u97F3", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", custom: "\u81EA\u5B9A\u4E49", behavior: "\u63D0\u9192\u884C\u4E3A", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
+      en: { title: "Sound notifications", mute: "Mute all", masterVolume: "Master volume", volume: "Volume", more: "More settings", soundTypes: "Sound types", turnComplete: "Task complete", toolSuccess: "Tool succeeded", toolFailure: "Tool failed", enabled: "Enabled", preview: "Preview", delete: "Delete", choose: "Choose sound", customSound: "Custom sound", drop: "Drop audio here or choose a file", browse: "Choose file", restore: "Restore built-ins", saved: "Saved", loading: "Loading\u2026", rules: "Notification rules", quietShort: "Silence short tasks", frequency: "Tool frequency", quiet: "Quiet", normal: "Normal", every: "Every result", seconds: "s" },
+      zh: { title: "\u63D0\u793A\u97F3", mute: "\u5168\u90E8\u9759\u97F3", masterVolume: "\u603B\u4F53\u97F3\u91CF", volume: "\u97F3\u91CF", more: "\u66F4\u591A\u8BBE\u7F6E", soundTypes: "\u58F0\u97F3\u7C7B\u578B", turnComplete: "\u4EFB\u52A1\u5B8C\u6210", toolSuccess: "\u5DE5\u5177\u6210\u529F", toolFailure: "\u5DE5\u5177\u5931\u8D25", enabled: "\u542F\u7528", preview: "\u8BD5\u542C", delete: "\u5220\u9664", choose: "\u9009\u62E9\u58F0\u97F3", customSound: "\u81EA\u5B9A\u4E49\u58F0\u97F3", drop: "\u62D6\u5165\u58F0\u97F3\uFF0C\u6216\u9009\u62E9\u6587\u4EF6", browse: "\u9009\u62E9\u6587\u4EF6", restore: "\u6062\u590D\u5185\u7F6E\u58F0\u97F3", saved: "\u5DF2\u4FDD\u5B58", loading: "\u52A0\u8F7D\u4E2D\u2026", rules: "\u63D0\u9192\u89C4\u5219", quietShort: "\u77ED\u4EFB\u52A1\u4E0D\u63D0\u9192", frequency: "\u5DE5\u5177\u63D0\u793A\u9891\u7387", quiet: "\u5B89\u9759", normal: "\u6B63\u5E38", every: "\u6BCF\u6B21\u7ED3\u679C", seconds: "\u79D2" }
     };
     var styles = {
       root: { alignSelf: "start", width: "100%", minHeight: 0, color: "var(--dsw-alias-label-primary, #f4f5f6)", marginTop: 8, borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.1))" },
       header: { minHeight: 42, display: "flex", alignItems: "center" },
       title: { margin: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, letterSpacing: 0 },
-      moreSummary: { minHeight: 38, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", fontSize: 13 },
+      moreSummary: { minHeight: 40, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", listStyle: "none", fontSize: 13, fontWeight: 500, borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.08))" },
       disclosure: { display: "inline-block", width: 12, flex: "0 0 12px", fontSize: 10, lineHeight: 1, textAlign: "center" },
       content: { padding: "0 0 8px" },
-      moreBody: { padding: "0 0 4px 18px" },
+      moreBody: { padding: "0 0 4px 19px" },
+      groupTitle: { margin: "8px 0 2px", color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12, fontWeight: 500, lineHeight: 1.5 },
       row: { display: "grid", gridTemplateColumns: "minmax(110px, 1fr) minmax(170px, 1.4fr)", gap: 12, alignItems: "center", minHeight: 42 },
       channel: { padding: "2px 0", borderTop: "1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.07))" },
-      channelSummary: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40, cursor: "pointer", fontSize: 13 },
+      channelSummary: { display: "grid", gridTemplateColumns: "minmax(110px, 1fr) minmax(170px, 1.4fr)", alignItems: "center", gap: 12, minHeight: 40, cursor: "pointer", listStyle: "none", fontSize: 13 },
+      channelTitle: { display: "flex", alignItems: "center", gap: 7, minWidth: 0 },
       channelBody: { padding: "2px 0 10px 18px" },
       controls: { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 6 },
       choices: { display: "flex", flexWrap: "wrap", gap: 6, margin: "5px 0 8px" },
@@ -14700,7 +14703,8 @@ window.__ModuleLoader__.load({
       active: { borderColor: "var(--dsw-alias-accent-primary, #1688f8)", background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
       range: { width: "100%", accentColor: "var(--dsw-alias-accent-primary, #1688f8)" },
       check: { width: 16, height: 16, accentColor: "var(--dsw-alias-accent-primary, #1688f8)" },
-      drop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 44, padding: "6px 8px", border: "1px dashed var(--dsw-alias-border-l2, rgba(255,255,255,.22))", borderRadius: 6, fontSize: 12 },
+      drop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 42, fontSize: 12 },
+      dropActive: { background: "var(--dsw-alias-bg-elevated, rgba(255,255,255,.07))" },
       hint: { color: "var(--dsw-alias-label-secondary, #aeb3bb)", fontSize: 12 },
       status: { minHeight: 18, fontSize: 12, color: "var(--dsw-alias-label-secondary, #aeb3bb)" },
       error: { minHeight: 18, fontSize: 12, color: "var(--dsw-alias-danger, #ff6b6b)" }
@@ -14713,6 +14717,7 @@ window.__ModuleLoader__.load({
       const [error51, setError] = (0, import_react.useState)("");
       const [dragging, setDragging] = (0, import_react.useState)();
       const [moreOpen, setMoreOpen] = (0, import_react.useState)(false);
+      const [openChannels, setOpenChannels] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
       const fileInputs = (0, import_react.useRef)({});
       const saveTimer = (0, import_react.useRef)();
       const saveRevision = (0, import_react.useRef)(0);
@@ -14780,6 +14785,20 @@ window.__ModuleLoader__.load({
           setStatus("");
         }
       }, [c.saved, draft, locale, remote, snapshot2]);
+      (0, import_react.useEffect)(() => {
+        const handleDrop = (event) => {
+          const detail = event.detail;
+          if (!detail || detail.phase === "leave" || !detail.channel) {
+            setDragging(void 0);
+            return;
+          }
+          setDragging(detail.phase === "hover" ? detail.channel : void 0);
+          const file2 = detail.files?.[0];
+          if (detail.phase === "drop" && file2) void importFile(detail.channel, file2);
+        };
+        window.addEventListener(SOUND_FILE_DROP_EVENT, handleDrop);
+        return () => window.removeEventListener(SOUND_FILE_DROP_EVENT, handleDrop);
+      }, [importFile]);
       if (!snapshot2 || !draft) return import_react.default.createElement(
         "div",
         { style: { ...styles.root, ...embedded ? {} : { borderTop: 0 } } },
@@ -14804,24 +14823,52 @@ window.__ModuleLoader__.load({
         const config2 = draft.channels[channel2];
         const sounds = snapshot2.sounds.filter((sound) => sound.channels.includes(channel2));
         const selected = sounds.find((sound) => sound.id === config2.soundId);
+        const channelOpen = openChannels.has(channel2);
         return import_react.default.createElement(
           "details",
-          { key: channel2, style: styles.channel },
-          import_react.default.createElement("summary", { style: styles.channelSummary }, import_react.default.createElement("span", null, c[channel2]), import_react.default.createElement("span", { style: styles.controls }, import_react.default.createElement("span", { style: styles.hint }, selected?.displayName ?? config2.soundId), import_react.default.createElement("input", { type: "checkbox", style: styles.check, title: c.enabled, checked: config2.enabled, onClick: (event) => event.stopPropagation(), onChange: (event) => {
-            const checked = event.currentTarget.checked;
-            mutate((next) => {
-              next.channels[channel2].enabled = checked;
+          { key: channel2, open: channelOpen, onToggle: (event) => {
+            const isOpen = event.currentTarget.open;
+            setOpenChannels((current) => {
+              const next = new Set(current);
+              if (isOpen) next.add(channel2);
+              else next.delete(channel2);
+              return next;
             });
-          } }))),
+          }, style: styles.channel },
+          import_react.default.createElement(
+            "summary",
+            { style: styles.channelSummary },
+            import_react.default.createElement("span", { style: styles.channelTitle }, import_react.default.createElement("span", { style: styles.disclosure, "aria-hidden": true }, channelOpen ? "\u25BC" : "\u25B6"), import_react.default.createElement("span", null, c[channel2])),
+            import_react.default.createElement("span", { style: styles.controls }, import_react.default.createElement("span", { style: styles.hint }, selected?.displayName ?? config2.soundId), import_react.default.createElement("input", { type: "checkbox", style: styles.check, title: c.enabled, "aria-label": `${c[channel2]} \xB7 ${c.enabled}`, checked: config2.enabled, onClick: (event) => event.stopPropagation(), onChange: (event) => {
+              const checked = event.currentTarget.checked;
+              mutate((next) => {
+                next.channels[channel2].enabled = checked;
+              });
+            } }))
+          ),
           import_react.default.createElement(
             "div",
             { style: styles.channelBody },
-            import_react.default.createElement("div", { style: styles.choices }, ...sounds.map((sound) => import_react.default.createElement("button", { key: sound.id, type: "button", style: { ...styles.button, ...sound.id === config2.soundId ? styles.active : {} }, onClick: () => mutate((next) => {
+            import_react.default.createElement("div", { style: styles.row }, c.choose, import_react.default.createElement("div", { style: styles.choices }, ...sounds.map((sound) => import_react.default.createElement("button", { key: sound.id, type: "button", style: { ...styles.button, ...sound.id === config2.soundId ? styles.active : {} }, onClick: () => mutate((next) => {
               next.channels[channel2].soundId = sound.id;
-            }) }, sound.displayName))),
+            }) }, sound.displayName)))),
             import_react.default.createElement("div", { style: styles.row }, `${c.volume} \xB7 ${Math.round(config2.volume * 100)}%`, range(config2.volume, (value) => mutate((next) => {
               next.channels[channel2].volume = value;
             }))),
+            import_react.default.createElement(
+              "div",
+              { style: styles.row },
+              c.customSound,
+              import_react.default.createElement("div", { "data-xy-sound-drop-zone": channel2, style: { ...styles.drop, ...dragging === channel2 ? styles.dropActive : {} }, onDragEnter: (event) => {
+                event.preventDefault();
+                setDragging(channel2);
+              }, onDragOver: (event) => event.preventDefault(), onDragLeave: () => setDragging(void 0), onDrop: (event) => {
+                event.preventDefault();
+                setDragging(void 0);
+                const file2 = event.dataTransfer.files[0];
+                if (file2) void importFile(channel2, file2);
+              } }, import_react.default.createElement("span", { style: styles.hint }, c.drop), import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => fileInputs.current[channel2]?.click() }, c.browse))
+            ),
             import_react.default.createElement("div", { style: styles.controls }, import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => remote.preview(channel2, config2.soundId).then(remoteValue).catch((reason) => setError(String(reason))) }, c.preview), !selected?.builtIn && import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
               try {
                 const value = remoteValue(await remote.removeSound(config2.soundId));
@@ -14831,15 +14878,6 @@ window.__ModuleLoader__.load({
                 setError(String(reason));
               }
             } }, c.delete)),
-            import_react.default.createElement("div", { style: { ...styles.drop, ...dragging === channel2 ? { borderColor: "var(--dsw-alias-accent-primary, #1688f8)" } : {} }, onDragEnter: (event) => {
-              event.preventDefault();
-              setDragging(channel2);
-            }, onDragOver: (event) => event.preventDefault(), onDragLeave: () => setDragging(void 0), onDrop: (event) => {
-              event.preventDefault();
-              setDragging(void 0);
-              const file2 = event.dataTransfer.files[0];
-              if (file2) void importFile(channel2, file2);
-            } }, import_react.default.createElement("span", null, c.drop), import_react.default.createElement("button", { type: "button", style: styles.button, onClick: () => fileInputs.current[channel2]?.click() }, c.browse)),
             import_react.default.createElement("input", { ref: (element) => {
               fileInputs.current[channel2] = element;
             }, type: "file", accept: ".wav,.mp3,.ogg,audio/wav,audio/mpeg,audio/ogg", hidden: true, onChange: (event) => {
@@ -14873,25 +14911,23 @@ window.__ModuleLoader__.load({
             import_react.default.createElement(
               "div",
               { style: styles.moreBody },
+              import_react.default.createElement("h4", { style: styles.groupTitle }, c.soundTypes),
               ...channels,
-              import_react.default.createElement("details", { style: styles.channel }, import_react.default.createElement("summary", { style: styles.channelSummary }, c.behavior), import_react.default.createElement(
-                "div",
-                { style: styles.channelBody },
-                import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
-                  next.minimumTurnDurationMs = value;
-                }), 6e4, 500, c.quietShort)),
-                import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
-                import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
-                  try {
-                    const value = remoteValue(await remote.restoreBuiltIns());
-                    setSnapshot(value);
-                    setDraft(value.config);
-                    setStatus(c.saved);
-                  } catch (reason) {
-                    setError(String(reason));
-                  }
-                } }, c.restore)
-              ))
+              import_react.default.createElement("h4", { style: styles.groupTitle }, c.rules),
+              import_react.default.createElement("div", { style: styles.row }, `${c.quietShort} \xB7 ${Math.round(draft.minimumTurnDurationMs / 100) / 10} ${c.seconds}`, range(draft.minimumTurnDurationMs, (value) => mutate((next) => {
+                next.minimumTurnDurationMs = value;
+              }), 6e4, 500, c.quietShort)),
+              import_react.default.createElement("div", { style: styles.row }, c.frequency, import_react.default.createElement("div", { style: styles.controls }, ...["quiet", "normal", "every"].map((value) => import_react.default.createElement("button", { key: value, type: "button", style: { ...styles.button, ...frequency === value ? styles.active : {} }, onClick: () => setFrequency(value) }, c[value])))),
+              import_react.default.createElement("div", { style: styles.row }, import_react.default.createElement("span", null), import_react.default.createElement("div", { style: styles.controls }, import_react.default.createElement("button", { type: "button", style: styles.button, onClick: async () => {
+                try {
+                  const value = remoteValue(await remote.restoreBuiltIns());
+                  setSnapshot(value);
+                  setDraft(value.config);
+                  setStatus(c.saved);
+                } catch (reason) {
+                  setError(String(reason));
+                }
+              } }, c.restore)))
             )
           ),
           import_react.default.createElement("div", { style: error51 ? styles.error : styles.status, role: "status" }, error51 || status)

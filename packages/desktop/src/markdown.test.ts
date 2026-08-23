@@ -21,4 +21,17 @@ describe('desktop Markdown rendering', () => {
   it('keeps collapsed summaries on one line', () => {
     expect(renderMarkdownInline('**完成**\n下一行')).toBe('<strong>完成</strong> 下一行')
   })
+
+  it('renders headings and tables in the detailed activity view', () => {
+    const html = renderMarkdown('### 结果\n\n| 项目 | 状态 |\n| --- | --- |\n| 桌宠 | 完成 |')
+    expect(html).toContain('<h3>结果</h3>')
+    expect(html).toContain('<table>')
+    expect(html).toContain('<th>项目</th>')
+    expect(html).toContain('<td>完成</td>')
+  })
+
+  it('never renders hidden think blocks in compact or detailed messages', () => {
+    expect(renderMarkdown('<think>private reasoning</think>\n\n### 收到')).not.toContain('private reasoning')
+    expect(renderMarkdownInline('<think>private reasoning</think> 收到')).toBe(' 收到')
+  })
 })

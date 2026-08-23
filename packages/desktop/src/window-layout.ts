@@ -20,8 +20,35 @@ export interface PetPlacement {
   petPosition: { x: number; y: number }
 }
 
+export type PetBubbleSide = 'auto' | 'top' | 'right' | 'bottom' | 'left'
+
+const BUBBLE_LAYOUT_INSET = 8
+const BUBBLE_LAYOUT_GAP = 8
+const MAX_BUBBLE_WIDTH = 308
+const MAX_BUBBLE_HEIGHT = 242
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
+}
+
+export function companionWindowSize(petSize: { width: number; height: number }): { width: number; height: number } {
+  return {
+    width: Math.ceil(petSize.width + MAX_BUBBLE_WIDTH + BUBBLE_LAYOUT_GAP + BUBBLE_LAYOUT_INSET * 2),
+    height: Math.ceil(petSize.height + MAX_BUBBLE_HEIGHT + BUBBLE_LAYOUT_GAP + BUBBLE_LAYOUT_INSET * 2),
+  }
+}
+
+export function preferredPetOffsetForBubble(
+  side: PetBubbleSide,
+  windowSize: { width: number; height: number },
+  petSize: { width: number; height: number },
+): { x: number; y: number } {
+  const centerX = Math.max(0, (windowSize.width - petSize.width) / 2)
+  const centerY = Math.max(0, (windowSize.height - petSize.height) / 2)
+  if (side === 'left') return { x: Math.max(0, windowSize.width - petSize.width - BUBBLE_LAYOUT_INSET), y: centerY }
+  if (side === 'right') return { x: BUBBLE_LAYOUT_INSET, y: centerY }
+  if (side === 'bottom') return { x: centerX, y: BUBBLE_LAYOUT_INSET }
+  return { x: centerX, y: Math.max(0, windowSize.height - petSize.height - BUBBLE_LAYOUT_INSET) }
 }
 
 export function resolvePetOffset(

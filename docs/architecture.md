@@ -39,6 +39,13 @@ A browser surface cannot reliably provide a transparent, frameless, always-on-to
 - Pauses autonomous movement during direct interaction.
 - Loads untrusted themes as data and images only.
 - Renders a compact pixel-style right-click menu from validated safe action IDs; ordinary configuration and theme selection stay in Harness Web settings.
+- Records gesture-triggered audio as bounded 16 kHz mono PCM and passes it only to a platform `VoiceTranscriber`; audio never crosses the Harness bridge. Double-click and long-press map independently to voice input or opening Harness.
+
+### Voice transcription
+
+`VoiceTranscriber` is the stable boundary between pet interaction and recognition. The built-in `system` provider is the default: macOS uses a separately launched Speech Framework helper, while Windows uses the installed Windows speech-recognition language pack. The desktop process writes a mode-`0600` temporary WAV, bounds recordings to 60 seconds, reads one structured result, and removes the temporary directory in `finally`.
+
+The main package does not include a speech model or API key. A future provider can implement the same `transcribe(wav, language)` contract without changing pet gestures, the composer, or the Harness bridge. Executable providers are not accepted from themes or menu descriptors.
 
 ### Harness Web client
 

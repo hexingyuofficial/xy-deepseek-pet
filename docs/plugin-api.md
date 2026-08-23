@@ -1,6 +1,6 @@
 # Harness pet plugin interfaces
 
-`xy-deepseek-pet` is both a Cordis Host plugin and a Harness Web client plugin. The Host normalizes session events, owns the authenticated loopback bridge, and provides the `xyPet` settings remote. The Web face contributes a compact pet group to Harness General settings.
+`xy-deepseek-pet` is both a Cordis Host plugin and a Harness Web client plugin. The Host normalizes session events, owns the authenticated loopback bridge, and provides the `xyPet` settings remote. The Web face contributes a Desktop pet tab under Harness Settings > Plugins.
 
 ## Settings remote
 

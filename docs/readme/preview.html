@@ -41,7 +41,7 @@
   中文 · <a href="../../README.en.md">English</a>
 </p>
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.1.0-4EA8FF?style=flat-square">
+  <img alt="version" src="https://img.shields.io/badge/version-0.1.1-4EA8FF?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square">
   <img alt="node" src="https://img.shields.io/badge/Node.js-22%2B-43853d?style=flat-square">
   <img alt="harness" src="https://img.shields.io/badge/Harness-0.1.0--rc.6-1688f8?style=flat-square">
@@ -66,7 +66,7 @@
 </p>
 <h2 id="它是什么">它是什么</h2>
 <p>一句话：一只跟着真实 Harness 任务活着的小鲸鱼。</p>
-<p>任务一开始，它会扎进水里思考；工具在跑，它就停在水下；问你问题或等你审批时，气泡会顶到前面。你可以直接回原会话、在气泡里点“本次允许 / 拒绝”，或长按回到 Harness 页面。做完之后，它再浮上来，嘴里可能衔着完全不同的东西。</p>
+<p>任务一开始，它会扎进水里思考；工具在跑，它就停在水下；问你问题或等你审批时，气泡会顶到前面。你可以直接回原会话、在气泡里点“本次允许 / 拒绝”，或长按鲸鱼用系统语音输入回复。做完之后，它再浮上来，嘴里可能衔着完全不同的东西。</p>
 <p>它不是浏览器里的装饰图，也不是只能换皮肤的摆件。竞争力就三件事：</p>
 <div class="table-wrap"><table><thead><tr><th>它是</th><th>你得到的</th></tr></thead><tbody><tr><td>实用宠物</td><td>回复、审批、打开页面、做成桌面入口，都不用先去找浏览器窗口</td></tr><tr><td>趣味宠物</td><td>追鼠标、被甩出去、真下潜，上来还可能衔着薯条或宝箱</td></tr><tr><td>开放宠物</td><td>换皮肤、换音效、换快捷方式图标，并兼容 <a href="https://petdex.dev/">Petdex</a></td></tr></tbody></table></div>
 <p>桌宠只展示公开助手文字，以及“思考中 / 调用工具 / 等待回答 / 等待审批”。隐藏的 <code>reasoning-delta</code>、完整对话、原始工具参数、审批理由和桥接凭据都不会出桌面桥。</p>
@@ -75,7 +75,7 @@
 <p align="center">
   <img src="useful.png" alt="回复、审批、打开页面和桌面快捷方式" width="820">
 </p>
-<ul><li><strong>回原会话</strong>：最多三个会话气泡。点开就能打字，<code>Enter</code> 发送，<code>Shift+Enter</code> 换行。回复会回到对应会话，不用先翻网页标签。</li><li><strong>在气泡里做选择</strong>：提问会明确提示；审批可以直接点“本次允许 / 拒绝”。不必为了一个确认跳回页面。</li><li><strong>快速回到页面</strong>：默认长按打开 Harness，也可改成双击。右键也能打开页面、回复最近会话或进入设置。</li><li><strong>桌面快捷方式</strong>：设置里可创建一个同时拉起 Harness、网页和桌宠的入口。图标可用默认小鲸鱼，也可以换成自己的 PNG。</li></ul>
+<ul><li><strong>回原会话</strong>：最多三个会话气泡。点开就能打字，<code>Enter</code> 发送，<code>Shift+Enter</code> 换行。回复会回到对应会话，不用先翻网页标签。</li><li><strong>在气泡里做选择</strong>：提问会明确提示；审批可以直接点“本次允许 / 拒绝”。不必为了一个确认跳回页面。</li><li><strong>系统语音输入</strong>：默认长按 <code>0.5</code> 秒开始录音，松开后把识别文字放进最近会话的回复框；双击默认打开 Harness。两种手势都能在“交互动作”中独立改成“录音”“打开最近会话详情”“打开 Harness”或“无动作”。双击录音时，再双击或点击发送即可停止；识别结果始终先供确认，不会自动发送。</li><li><strong>桌面快捷方式</strong>：设置里可创建一个同时拉起 Harness、网页和桌宠的入口。图标可用默认小鲸鱼，也可以换成自己的 PNG。</li></ul>
 <p>侧边栏的“打开桌宠 / 关闭桌宠”是真开关。只关桌宠不会停掉 Harness。</p>
 <h2 id="趣味宠物">趣味宠物</h2>
 <p>它会玩，而且玩的是真实任务状态，不是循环播放一张待机图。</p>
@@ -109,20 +109,20 @@
 <p>   ``<code>sh
    dsh web
    </code>``</p>
-<p>侧边栏随后会出现“打开桌宠”。第一次不会自动弹出来，可在通用设置里打开“随 Harness 启动”。不要在旧服务还占着 3080 时再开一份 <code>dsh web</code>。</p>
+<p>侧边栏随后会出现“打开桌宠”。第一次不会自动弹出来，可在“设置 > 插件 > 桌面宠物”里打开“随 Harness 启动”。不要在旧服务还占着 3080 时再开一份 <code>dsh web</code>。</p>
 <p>提示音是可选的：</p>
 <pre><code class="language-sh">dsh plugin --profile web add xy-deepseek-sounds
 </code></pre>
 <div class="table-wrap"><table><thead><tr><th>安装内容</th><th>你会得到什么</th></tr></thead><tbody><tr><td><code>xy-deepseek-pet</code></td><td>Cordis Host 桥、Harness 设置页和 Electron 桌宠</td></tr><tr><td><code>xy-deepseek-sounds</code></td><td>完成 / 工具结果提示音，不安装 Electron</td></tr><tr><td>两者都装</td><td>声音设置收进“桌面宠物”，不会重复听同一批事件</td></tr></tbody></table></div>
 <p>如果安装日志里错误地出现 <code>workspace:</code>，先确认装的是 npm registry 版本，而不是仓库目录或旧 tarball：</p>
-<pre><code class="language-sh">npm view xy-deepseek-pet@0.1.0 dependencies
+<pre><code class="language-sh">npm view xy-deepseek-pet@0.1.1 dependencies
 dsh plugin --profile web list xy-deepseek-pet xy-deepseek-desktop
 </code></pre>
-<p>registry 上的 <code>xy-deepseek-pet@0.1.0</code> 依赖是普通的 <code>xy-deepseek-desktop: 0.1.0</code>，不用改成 <code>file:</code>。如果日志明确说 pnpm 拦住了 Electron 的安装脚本，到日志里写的 profile 目录运行 <code>pnpm approve-builds</code>，允许 <code>electron</code> 后再装一次。</p>
+<p>registry 上的 <code>xy-deepseek-pet@0.1.1</code> 依赖是普通的 <code>xy-deepseek-desktop: 0.1.1</code>，不用改成 <code>file:</code>。如果日志明确说 pnpm 拦住了 Electron 的安装脚本，到日志里写的 profile 目录运行 <code>pnpm approve-builds</code>，允许 <code>electron</code> 后再装一次。</p>
 <h2 id="使用">使用</h2>
-<ul><li>侧边栏开关桌宠；关桌宠不等于关 Harness。</li><li>单击气泡回复；审批按钮就在气泡里。</li><li>右键：打开 Harness、回复最近会话、打开设置、重新连接或关掉桌宠。</li><li>所有偏好都在 <strong>通用设置 > 桌面宠物</strong>：主题、缩放、游动、追鼠标、抛掷阻力、全屏时是否显示、导入 ZIP、桌面快捷方式。</li><li>选 ZIP 后会先验证再启用。</li></ul>
+<ul><li>侧边栏开关桌宠；关桌宠不等于关 Harness。</li><li>单击气泡回复；审批按钮就在气泡里。</li><li>右键：打开 Harness、回复最近会话、打开设置、重新连接或关掉桌宠。</li><li>所有偏好都在 <strong>设置 > 插件 > 桌面宠物</strong>：主题、缩放、游动、追鼠标、抛掷阻力、全屏时是否显示、导入 ZIP、桌面快捷方式。</li><li>选 ZIP 后会先验证再启用。</li></ul>
 <h2 id="平台状态">平台状态</h2>
-<ul><li>macOS：源码构建、npm tarball 干净安装和桌面进程启动已验证。</li><li>Windows：共用同一套 Electron 源码；启动参数、PowerShell 播放和构建路径有自动化测试。0.1.0 还没做完交互式 Windows GUI 全流程验证。</li><li>0.1.0 未签名、未公证，也没有独立的 <code>.dmg</code>、<code>.msi</code> 或 <code>.exe</code>。系统若拦截未知应用，请走 npm / Harness 安装，不要绕过来源不明的安全警告。</li></ul>
+<ul><li>macOS：源码构建、npm tarball 干净安装和桌面进程启动已验证。</li><li>Windows：共用同一套 Electron 源码；安装升级、桌面进程启动和 Harness 健康状态已在 Windows 测试，语音输入仍待真机验证。</li><li>0.1.1 未签名、未公证，也没有独立的 <code>.dmg</code>、<code>.msi</code> 或 <code>.exe</code>。系统若拦截未知应用，请走 npm / Harness 安装，不要绕过来源不明的安全警告。</li></ul>
 <h2 id="开发">开发</h2>
 <pre><code class="language-sh">pnpm install --frozen-lockfile
 pnpm build

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { MAC_PET_ACTIVATION_POLICY, macWindowVisibilityPolicy } from './window-visibility.js'
+import { MAC_PET_ACTIVATION_POLICY, macWindowVisibilityPolicy, summonWindowActivation } from './window-visibility.js'
 
 describe('desktop window visibility policy', () => {
+  it('focuses a summoned chat but leaves a pet-only summon inactive', () => {
+    expect(summonWindowActivation(true)).toBe('active')
+    expect(summonWindowActivation(false)).toBe('inactive')
+  })
   it('uses the UIElement-compatible activation policy required by full-screen Spaces', () => {
     expect(MAC_PET_ACTIVATION_POLICY).toBe('accessory')
   })

@@ -53,17 +53,46 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync2 } from "node:fs";
 import { createRequire } from "node:module";
 import { lstat, mkdir as mkdir3, readFile as readFile3, rm, writeFile as writeFile3 } from "node:fs/promises";
-import { homedir as homedir3 } from "node:os";
-import { basename as basename2, dirname as dirname2, extname, join as join4, resolve as resolve3 } from "node:path";
+import { homedir as homedir4 } from "node:os";
+import { basename as basename2, dirname as dirname2, extname, join as join5, resolve as resolve4 } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 
 // ../protocol/dist/index.js
 var PET_SETTINGS_QUERY = "xyPet";
+var DEFAULT_PET_ACCENT_COLOR = "#2c86f0";
+function stripThinkBlocks(value) {
+  let visible = "";
+  let depth = 0;
+  let index = 0;
+  while (index < value.length) {
+    if (value[index] === "<") {
+      const remaining = value.slice(index);
+      const tag = remaining.match(/^<\s*(\/?)\s*think(?:\s[^>]*)?>/i);
+      if (tag) {
+        depth = tag[1] ? Math.max(0, depth - 1) : depth + 1;
+        index += tag[0].length;
+        continue;
+      }
+      const lower = remaining.toLowerCase();
+      const incompleteTag = "<think>".startsWith(lower) || "</think>".startsWith(lower) || /^<think(?:\s[^>]*)?$/i.test(remaining) || /^<\/think\s*$/i.test(remaining);
+      if (incompleteTag)
+        break;
+    }
+    if (depth === 0)
+      visible += value[index];
+    index += 1;
+  }
+  return visible;
+}
 function petSettingsUrl(clientUrl) {
   const url = new URL(clientUrl);
   url.searchParams.set(PET_SETTINGS_QUERY, "settings");
   return url.toString();
 }
+var PET_CHAT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+var MAX_CHAT_IMAGES = 4;
+var MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
+var MAX_CHAT_IMAGE_BASE64_LENGTH = Math.ceil(MAX_CHAT_IMAGE_BYTES / 3) * 4;
 var MAX_STATUS_TEXT = 280;
 function boundedStatusText(value) {
   if (typeof value !== "string")
@@ -165,7 +194,20 @@ function isBridgeClientMessage(value) {
   }
   if (message.type === "treasure-found")
     return true;
-  return message.type === "chat" && typeof message.requestId === "string" && message.requestId.length <= 128 && typeof message.text === "string" && message.text.trim().length > 0 && message.text.length <= 8e3 && (message.sessionId === void 0 || typeof message.sessionId === "string" && message.sessionId.length <= 256);
+  if (message.type !== "chat" || typeof message.requestId !== "string" || message.requestId.length > 128 || typeof message.text !== "string" || message.text.length > 8e3 || message.sessionId !== void 0 && (typeof message.sessionId !== "string" || message.sessionId.length > 256))
+    return false;
+  const images = message.images;
+  if (images !== void 0 && (!Array.isArray(images) || images.length > MAX_CHAT_IMAGES || !images.every(validChatImage)))
+    return false;
+  if (images && images.reduce((total, image) => total + image.data.length, 0) > MAX_CHAT_IMAGE_BASE64_LENGTH)
+    return false;
+  return message.text.trim().length > 0 || Boolean(images?.length);
+}
+function validChatImage(value) {
+  if (!value || typeof value !== "object")
+    return false;
+  const image = value;
+  return typeof image.name === "string" && image.name.length > 0 && image.name.length <= 255 && PET_CHAT_IMAGE_TYPES.includes(image.mediaType) && typeof image.data === "string" && image.data.length > 0 && image.data.length <= MAX_CHAT_IMAGE_BASE64_LENGTH;
 }
 function validQuestionAnswers(value) {
   return Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every((entry) => {
@@ -178,8 +220,8 @@ function validQuestionAnswers(value) {
 
 // src/gateway.ts
 import { Remote, TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
-var _createLauncher_dec, _closeDesktop_dec, _desktopStatus_dec, _openDesktop_dec, _importTheme_dec, _update_dec, _snapshot_dec, _a, _init;
-var PetSettingsGateway = class extends (_a = TypertRemoteService, _snapshot_dec = [Remote], _update_dec = [Remote], _importTheme_dec = [Remote], _openDesktop_dec = [Remote], _desktopStatus_dec = [Remote], _closeDesktop_dec = [Remote], _createLauncher_dec = [Remote], _a) {
+var _createFinderQuickAction_dec, _createLauncher_dec, _closeDesktop_dec, _desktopStatus_dec, _openDesktop_dec, _importTheme_dec, _update_dec, _snapshot_dec, _a, _init;
+var PetSettingsGateway = class extends (_a = TypertRemoteService, _snapshot_dec = [Remote], _update_dec = [Remote], _importTheme_dec = [Remote], _openDesktop_dec = [Remote], _desktopStatus_dec = [Remote], _closeDesktop_dec = [Remote], _createLauncher_dec = [Remote], _createFinderQuickAction_dec = [Remote], _a) {
   constructor(ctx, controller, runtime) {
     super(ctx, "xyPet");
     this.controller = controller;
@@ -208,6 +250,9 @@ var PetSettingsGateway = class extends (_a = TypertRemoteService, _snapshot_dec 
   createLauncher(name2, iconId, fileName, dataBase64) {
     return this.runtime.createLauncher(name2, iconId, fileName, dataBase64);
   }
+  createFinderQuickAction() {
+    return this.runtime.createFinderQuickAction();
+  }
 };
 _init = __decoratorStart(_a);
 __decorateElement(_init, 1, "snapshot", _snapshot_dec, PetSettingsGateway);
@@ -217,6 +262,7 @@ __decorateElement(_init, 1, "openDesktop", _openDesktop_dec, PetSettingsGateway)
 __decorateElement(_init, 1, "desktopStatus", _desktopStatus_dec, PetSettingsGateway);
 __decorateElement(_init, 1, "closeDesktop", _closeDesktop_dec, PetSettingsGateway);
 __decorateElement(_init, 1, "createLauncher", _createLauncher_dec, PetSettingsGateway);
+__decorateElement(_init, 1, "createFinderQuickAction", _createFinderQuickAction_dec, PetSettingsGateway);
 __decoratorMetadata(_init, PetSettingsGateway);
 
 // src/menu-registry.ts
@@ -232,9 +278,11 @@ var PET_SCALE_MIN = 0.2;
 var PET_SCALE_MAX = 2;
 var PET_SCALE_STEP = 0.05;
 var PET_MENU_ACTIONS = ["open-client", "chat", "settings"];
+var PET_INTERACTION_ACTIONS = ["none", "voice", "openRecentChat", "openHarness"];
 var DEFAULT_PET_STATS = { treasuresFound: 0 };
 var DEFAULT_PET_SETTINGS = {
   themeId: "whale-default",
+  accentColor: DEFAULT_PET_ACCENT_COLOR,
   reducedMotion: false,
   bubbleVisible: true,
   walkingEnabled: true,
@@ -249,7 +297,11 @@ var DEFAULT_PET_SETTINGS = {
   teleportShortcut: "CommandOrControl+Shift+P",
   teleportOpensRecentChat: false,
   scale: 1,
-  activationGesture: "longPress",
+  doubleClickAction: "openHarness",
+  longPressAction: "voice",
+  voiceInputEnabled: true,
+  voiceProvider: "system",
+  voiceLanguage: "system",
   locale: "system",
   autoLaunch: false,
   menuActions: [...PET_MENU_ACTIONS]
@@ -272,8 +324,13 @@ function resolvePetSettings(input = {}) {
   const scale = typeof input.scale === "number" && Number.isFinite(input.scale) && input.scale >= PET_SCALE_MIN && input.scale <= PET_SCALE_MAX ? Math.round(input.scale / PET_SCALE_STEP) * PET_SCALE_STEP : DEFAULT_PET_SETTINGS.scale;
   const menuActions = Array.isArray(input.menuActions) ? [...new Set(input.menuActions.filter((value) => typeof value === "string" && /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(value) && value.length <= 96))] : [...DEFAULT_PET_SETTINGS.menuActions];
   const movementLevel = (value, fallback) => typeof value === "number" && Number.isFinite(value) ? Math.round(Math.min(100, Math.max(0, value))) : fallback;
+  const legacy = input;
+  const action = (value) => PET_INTERACTION_ACTIONS.includes(value);
+  const doubleClickAction = action(input.doubleClickAction) ? input.doubleClickAction : DEFAULT_PET_SETTINGS.doubleClickAction;
+  const longPressAction = action(input.longPressAction) ? input.longPressAction : legacy.voiceInputEnabled === false && legacy.activationGesture === "longPress" ? "openHarness" : DEFAULT_PET_SETTINGS.longPressAction;
   return {
     themeId: typeof input.themeId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.themeId) ? input.themeId : DEFAULT_PET_SETTINGS.themeId,
+    accentColor: typeof input.accentColor === "string" && /^#[0-9a-f]{6}$/i.test(input.accentColor) ? input.accentColor.toLowerCase() : DEFAULT_PET_SETTINGS.accentColor,
     reducedMotion: input.reducedMotion === true,
     bubbleVisible: input.bubbleVisible !== false,
     walkingEnabled: input.walkingEnabled !== false,
@@ -288,7 +345,11 @@ function resolvePetSettings(input = {}) {
     teleportShortcut: typeof input.teleportShortcut === "string" && /^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/.test(input.teleportShortcut) ? input.teleportShortcut : DEFAULT_PET_SETTINGS.teleportShortcut,
     teleportOpensRecentChat: input.teleportOpensRecentChat === true,
     scale,
-    activationGesture: input.activationGesture === "doubleClick" || input.activationGesture === "longPress" ? input.activationGesture : DEFAULT_PET_SETTINGS.activationGesture,
+    doubleClickAction,
+    longPressAction,
+    voiceInputEnabled: doubleClickAction === "voice" || longPressAction === "voice",
+    voiceProvider: "system",
+    voiceLanguage: input.voiceLanguage === "zh-CN" || input.voiceLanguage === "en-US" ? input.voiceLanguage : "system",
     locale: "system",
     autoLaunch: input.autoLaunch === true,
     menuActions,
@@ -855,8 +916,8 @@ for (const key of [
   return schema;
 } });
 var resolvers = {};
-Schema.extend = function extend(type, resolve4) {
-  resolvers[type] = resolve4;
+Schema.extend = function extend(type, resolve5) {
+  resolvers[type] = resolve5;
 };
 Schema.resolve = function resolve2(data, schema, options = {}, strict = false) {
   if (!schema) return [data];
@@ -2402,8 +2463,8 @@ function createRunCodeTool(registry, options) {
         driverRun = (async () => {
           try {
             for (; ; ) {
-              const signal = new Promise((resolve4) => {
-                wake = resolve4;
+              const signal = new Promise((resolve5) => {
+                wake = resolve5;
               });
               const commitHead = commitQueue[0];
               if (commitHead !== void 0 && commitHead.settled) {
@@ -2464,10 +2525,10 @@ function createRunCodeTool(registry, options) {
           signal: runController.signal
         };
         const scheduler = registry[TOOL_RUNTIME_SCHEDULER];
-        const outcome = await new Promise((resolve4, reject) => {
+        const outcome = await new Promise((resolve5, reject) => {
           let parked;
           const settle = (result2) => {
-            resolve4(result2.isError ? {
+            resolve5(result2.isError ? {
               isError: true,
               message: result2.error.message
             } : {
@@ -4293,7 +4354,7 @@ function toolAbortedBeforeDispatchResult(prior) {
 // src/agent-capabilities.ts
 import { readFile as readFile2, stat } from "node:fs/promises";
 import { basename } from "node:path";
-var OPERATIONS = ["status", "open_pet", "open_settings", "set_theme", "import_theme", "set_scale", "set_movement", "set_summon", "create_launcher"];
+var OPERATIONS = ["status", "open_pet", "open_settings", "set_theme", "import_theme", "set_scale", "set_movement", "set_summon", "set_voice", "create_launcher"];
 function result(message, snapshot) {
   return {
     ok: true,
@@ -4301,6 +4362,7 @@ function result(message, snapshot) {
     activeTheme: snapshot.config.themeId,
     scale: snapshot.config.scale,
     petAutoStart: snapshot.config.autoLaunch,
+    voiceInput: { enabled: snapshot.config.voiceInputEnabled, provider: snapshot.config.voiceProvider, language: snapshot.config.voiceLanguage },
     installedThemes: snapshot.themes.map(({ id, name: name2 }) => ({ id, name: name2 }))
   };
 }
@@ -4308,7 +4370,7 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
   ctx.systemPrompt.section({
     name: "tool:xy-deepseek-pet",
     order: 145,
-    text: "XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 20%-200% scaling, playful movement, a configurable global shortcut that summons the pet to the pointer, Harness General settings, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, change, summon, or tune the pet/skin, or explicitly asks to create the desktop shortcut. Movement levels are approximate 0-100 fun levels. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials."
+    text: "XY DeepSeek Pet is installed. It provides a desktop pet, replaceable theme/skin artwork, 20%-200% scaling, playful movement, system voice dictation on macOS and Windows, a configurable global shortcut that summons the pet to the pointer, a Desktop pet tab under Harness Settings > Plugins, and an optional desktop shortcut with a replaceable PNG icon. Use xy_pet when the user asks to inspect, open, resize, import, change, summon, or tune the pet/skin/voice input, or explicitly asks to create the desktop shortcut. Movement levels are approximate 0-100 fun levels. Voice input uses the operating system recognizer and never sends audio through the Harness bridge. When the user asks you to find or download a pet skin, you may download a licensed theme ZIP to a local path, report its source and license, then pass that local ZIP to xy_pet import_theme; never execute theme code or bypass validation. Pet appearance belongs to themes; shortcut artwork is configured separately. Optional notification sounds are managed by xy_pet_sounds only when that tool is available. Never request or reveal bridge credentials."
   });
   ctx.tools.register(defineTool({
     name: "xy_pet",
@@ -4328,6 +4390,10 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
       summon_enabled: { type: "boolean", description: "Enable or disable the global pet summon shortcut for set_summon." },
       summon_shortcut: { type: "string", description: "Electron accelerator such as CommandOrControl+Shift+P for set_summon." },
       summon_opens_chat: { type: "boolean", description: "Open the most recent reply panel after summoning for set_summon." },
+      voice_enabled: { type: "boolean", description: "Enable or disable system speech recognition for set_voice." },
+      voice_language: { type: "string", enum: ["system", "zh-CN", "en-US"], description: "System, Chinese, or English recognition language for set_voice." },
+      double_click_action: { type: "string", enum: ["none", "voice", "openRecentChat", "openHarness"], description: "Do nothing, record voice, open the latest session details, or open Harness on double click for set_voice." },
+      long_press_action: { type: "string", enum: ["none", "voice", "openRecentChat", "openHarness"], description: "Do nothing, record voice, open the latest session details, or open Harness on long press for set_voice." },
       launcher_name: { type: "string", description: "Desktop shortcut display name for create_launcher; defaults to DeepSeek Harness." },
       launcher_icon: { type: "string", enum: ["calm", "custom"], description: "Bundled cartoon whale icon or custom PNG for create_launcher." }
     },
@@ -4341,6 +4407,16 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
           activeTheme: { type: "string", required: true },
           scale: { type: "number", required: true },
           petAutoStart: { type: "boolean", required: true },
+          voiceInput: {
+            type: "object",
+            required: true,
+            additionalProperties: false,
+            properties: {
+              enabled: { type: "boolean", required: true },
+              provider: { type: "string", required: true },
+              language: { type: "string", required: true }
+            }
+          },
           installedThemes: {
             type: "array",
             required: true,
@@ -4364,7 +4440,7 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
         message = "XY DeepSeek Pet is open.";
       } else if (args.operation === "open_settings") {
         runtime.openSettings();
-        message = "Harness settings are open at the Desktop pet group.";
+        message = "Harness Settings > Plugins is open at the Desktop pet tab.";
       } else if (args.operation === "set_theme") {
         if (!args.theme_id) throw new Error("theme_id is required for set_theme");
         await settings.activateTheme(args.theme_id);
@@ -4413,6 +4489,23 @@ function registerPetAgentCapabilities(ctx, runtime, settings) {
         if (args.summon_opens_chat !== void 0) next.teleportOpensRecentChat = args.summon_opens_chat;
         await settings.update(next);
         message = "Pet summon shortcut updated.";
+      } else if (args.operation === "set_voice") {
+        if (args.voice_enabled === void 0 && args.voice_language === void 0 && args.double_click_action === void 0 && args.long_press_action === void 0) throw new Error("set_voice requires at least one voice setting");
+        if (args.voice_language !== void 0 && !["system", "zh-CN", "en-US"].includes(args.voice_language)) throw new Error("voice_language is invalid");
+        const next = settings.config;
+        if (args.double_click_action === "none" || args.double_click_action === "voice" || args.double_click_action === "openRecentChat" || args.double_click_action === "openHarness") next.doubleClickAction = args.double_click_action;
+        if (args.long_press_action === "none" || args.long_press_action === "voice" || args.long_press_action === "openRecentChat" || args.long_press_action === "openHarness") next.longPressAction = args.long_press_action;
+        if (args.voice_enabled === false) {
+          if (next.doubleClickAction === "voice") next.doubleClickAction = "openHarness";
+          if (next.longPressAction === "voice") next.longPressAction = "openHarness";
+        } else if (args.voice_enabled === true && next.doubleClickAction !== "voice" && next.longPressAction !== "voice") {
+          next.longPressAction = "voice";
+        }
+        if (args.voice_language !== void 0) next.voiceLanguage = args.voice_language;
+        next.voiceProvider = "system";
+        next.voiceInputEnabled = next.doubleClickAction === "voice" || next.longPressAction === "voice";
+        await settings.update(next);
+        message = "Pet system voice input settings updated.";
       } else if (args.operation === "create_launcher") {
         const iconId = args.launcher_icon === "custom" ? "custom" : "calm";
         let fileName = "";
@@ -4579,17 +4672,143 @@ function createDesktopLauncher(request) {
   throw new Error("Desktop shortcut creation currently supports macOS and Windows.");
 }
 
+// src/finder-quick-action.ts
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { chmodSync as chmodSync2, mkdirSync as mkdirSync2, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join4, resolve as resolve3 } from "node:path";
+var ACTION_NAME = "\u53D1\u9001\u5230\u5C0F\u9CB8\u9C7C";
+function xml2(value) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+function shellQuote2(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+function finderQuickActionDocument(command) {
+  const script = `exec ${shellQuote2(command)} "$@"`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>AMApplicationBuild</key><string>523</string>
+<key>AMApplicationVersion</key><string>2.10</string>
+<key>AMDocumentVersion</key><string>2</string>
+<key>actions</key><array><dict><key>action</key><dict>
+<key>AMAccepts</key><dict><key>Container</key><string>List</string><key>Optional</key><false/><key>Types</key><array><string>com.apple.cocoa.path</string></array></dict>
+<key>AMActionVersion</key><string>2.0.3</string>
+<key>AMParameterProperties</key><dict/>
+<key>AMProvides</key><dict><key>Container</key><string>List</string><key>Types</key><array><string>com.apple.cocoa.path</string></array></dict>
+<key>ActionBundlePath</key><string>/System/Library/Automator/Run Shell Script.action</string>
+<key>ActionName</key><string>Run Shell Script</string>
+<key>ActionParameters</key><dict><key>COMMAND_STRING</key><string>${xml2(script)}</string><key>CheckedForUserDefaultShell</key><false/><key>inputMethod</key><integer>1</integer><key>shell</key><string>/bin/zsh</string><key>source</key><string></string></dict>
+<key>BundleIdentifier</key><string>com.apple.RunShellScript</string>
+<key>CFBundleVersion</key><string>2.0.3</string>
+<key>CanShowSelectedItemsWhenRun</key><false/><key>CanShowWhenRun</key><true/>
+<key>Class Name</key><string>RunShellScriptAction</string>
+<key>InputUUID</key><string>6D48E37A-47A8-42A4-8D09-11DEE0000001</string>
+<key>OutputUUID</key><string>43D2BC25-BA6A-4410-8E81-11DEE0000002</string>
+<key>UUID</key><string>C6D38B8B-774D-4BF7-A180-11DEE0000003</string>
+</dict><key>isViewVisible</key><true/></dict></array>
+<key>connectors</key><dict/>
+<key>workflowMetaData</key><dict>
+<key>serviceApplicationBundleID</key><string>com.apple.finder</string>
+<key>serviceApplicationPath</key><string>/System/Library/CoreServices/Finder.app</string>
+<key>serviceInputTypeIdentifier</key><string>com.apple.Automator.fileSystemObject</string>
+<key>serviceOutputTypeIdentifier</key><string>com.apple.Automator.nothing</string>
+<key>serviceProcessesInput</key><integer>0</integer>
+<key>workflowTypeIdentifier</key><string>com.apple.Automator.servicesMenu</string>
+</dict></dict></plist>
+`;
+}
+function finderQuickActionInfo() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+<key>CFBundleIdentifier</key><string>com.xy-deepseek-pet.send-to-whale</string>
+<key>CFBundleName</key><string>${ACTION_NAME}</string>
+<key>CFBundleShortVersionString</key><string>1.0</string>
+<key>NSServices</key><array><dict>
+<key>NSMenuItem</key><dict><key>default</key><string>${ACTION_NAME}</string></dict>
+<key>NSMessage</key><string>runWorkflowAsService</string>
+<key>NSRequiredContext</key><dict><key>NSApplicationIdentifier</key><string>com.apple.finder</string></dict>
+<key>NSSendFileTypes</key><array><string>public.item</string></array>
+</dict></array>
+</dict></plist>
+`;
+}
+function installFinderQuickAction(packageRoot, nodeExecutable) {
+  const runtimeRoot = join4(homedir3(), ".xy-deepseek-pet");
+  const command = join4(runtimeRoot, "send-files-to-pet");
+  const workflow = join4(homedir3(), "Library", "Services", `${ACTION_NAME}.workflow`);
+  const contents = join4(workflow, "Contents");
+  const resources = join4(contents, "Resources");
+  mkdirSync2(runtimeRoot, { recursive: true, mode: 448 });
+  writeFileSync2(command, `#!/bin/sh
+umask 077
+exec ${shellQuote2(nodeExecutable)} ${shellQuote2(join4(packageRoot, "runtime", "launch.mjs"))} --finder-compose "$@"
+`, { mode: 448 });
+  chmodSync2(command, 448);
+  rmSync2(workflow, { recursive: true, force: true });
+  mkdirSync2(resources, { recursive: true, mode: 448 });
+  writeFileSync2(join4(contents, "Info.plist"), finderQuickActionInfo(), { mode: 384 });
+  writeFileSync2(join4(resources, "document.wflow"), finderQuickActionDocument(command), { mode: 384 });
+  try {
+    execFileSync2("/System/Library/CoreServices/pbs", ["-update"], { stdio: "ignore" });
+  } catch {
+  }
+  return { displayName: ACTION_NAME, platform: "macOS" };
+}
+function windowsSendToArguments(launchScript) {
+  return `"${launchScript.replaceAll('"', '\\"')}" --finder-compose`;
+}
+function fileQuickActionPackageRoot(packageRoot) {
+  return resolve3(packageRoot);
+}
+function installWindowsSendTo(packageRoot, nodeExecutable) {
+  const launchScript = join4(packageRoot, "runtime", "launch.mjs");
+  const sendToRoot = process.env.APPDATA ? join4(process.env.APPDATA, "Microsoft", "Windows", "SendTo") : join4(homedir3(), "AppData", "Roaming", "Microsoft", "Windows", "SendTo");
+  const shortcut = join4(sendToRoot, `${ACTION_NAME}.lnk`);
+  mkdirSync2(sendToRoot, { recursive: true });
+  const script = "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($env:XY_PET_SENDTO);$s.TargetPath=$env:XY_PET_NODE;$s.Arguments=$env:XY_PET_ARGUMENTS;$s.WorkingDirectory=$env:XY_PET_ROOT;$s.Save()";
+  execFileSync2("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    stdio: "ignore",
+    windowsHide: true,
+    env: {
+      ...process.env,
+      XY_PET_SENDTO: shortcut,
+      XY_PET_NODE: nodeExecutable,
+      XY_PET_ARGUMENTS: windowsSendToArguments(launchScript),
+      XY_PET_ROOT: packageRoot
+    }
+  });
+  return { displayName: ACTION_NAME, platform: "Windows" };
+}
+function installFileQuickAction(packageRoot, nodeExecutable) {
+  const absolutePackageRoot = fileQuickActionPackageRoot(packageRoot);
+  if (process.platform === "darwin") return installFinderQuickAction(absolutePackageRoot, nodeExecutable);
+  if (process.platform === "win32") return installWindowsSendTo(absolutePackageRoot, nodeExecutable);
+  throw new Error("File quick actions currently support macOS and Windows.");
+}
+
+// src/electron-env.ts
+function cleanElectronRuntimeEnv(source = process.env, extra2 = {}) {
+  const env = { ...source, ...extra2 };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.ELECTRON_NO_ATTACH_CONSOLE;
+  return env;
+}
+
 // src/index.ts
 var name = "xy-deepseek-pet";
 var inject = ["agents", "apiProxy", "approval", "commands", "systemPrompt", "tools"];
-var MAX_WIRE_BYTES = 64 * 1024;
+var MAX_WIRE_BYTES = 12 * 1024 * 1024;
 var REACTION_MS = 2800;
 var COMPLETION_SETTLE_MS = 500;
 var MAX_SESSION_ACTIVITIES = 16;
 var MAX_ACTIVITY_TEXT = 8e3;
 function boundedActivityText(value) {
   if (typeof value !== "string") return void 0;
-  const normalized = value.replace(/\s+/g, " ").trim();
+  const normalized = value.replace(/\r\n?/g, "\n").replace(/[\t ]+\n/g, "\n").replace(/\n[\t ]+/g, "\n").trim();
   return normalized ? normalized.slice(0, MAX_ACTIVITY_TEXT) : void 0;
 }
 function boundedVisibleString(value, maxLength) {
@@ -4641,9 +4860,9 @@ var require2 = createRequire(import.meta.url);
 function installedDesktop() {
   try {
     const packageRoot = dirname2(require2.resolve("xy-deepseek-desktop/package.json"));
-    const cli = join4(packageRoot, "bin", "cli.mjs");
-    const resourceRoot = join4(packageRoot, "dist", "resources");
-    if (!existsSync2(cli) || !existsSync2(join4(resourceRoot, "schemas", "theme.schema.json"))) return void 0;
+    const cli = join5(packageRoot, "bin", "cli.mjs");
+    const resourceRoot = join5(packageRoot, "dist", "resources");
+    if (!existsSync2(cli) || !existsSync2(join5(resourceRoot, "schemas", "theme.schema.json"))) return void 0;
     return { command: process.execPath, args: [cli], resourceRoot };
   } catch {
     return void 0;
@@ -4665,8 +4884,8 @@ function processAlive(pid) {
 }
 function visibleAssistantText(event) {
   if (event.type !== "assistant/message") return void 0;
-  const text = event.data.message.content.filter((block) => block.type === "text").map((block) => block.text).join(" ").trim();
-  return boundedActivityText(text);
+  const text = event.data.message.content.filter((block) => block.type === "text").map((block) => block.text).join("\n\n").trim();
+  return boundedActivityText(stripThinkBlocks(text));
 }
 function visibleAssistantChunk(event) {
   if (event.type !== "assistant/chunk" || event.data.chunk.type !== "text-delta") return void 0;
@@ -4695,6 +4914,8 @@ function approvalAuditEvent(event) {
   }
   return void 0;
 }
+var RESOLVED_APPROVAL_TTL_MS = 10 * 60 * 1e3;
+var MAX_RESOLVED_APPROVALS = 256;
 function visibleSessionTitle(event) {
   const candidate = event;
   if (candidate.type !== "session/title" || typeof candidate.data?.title !== "string") return void 0;
@@ -4716,9 +4937,9 @@ function desktopLaunch(config) {
   const installed = installedDesktop();
   if (installed) return installed;
   if (process.platform !== "darwin") return void 0;
-  const repositoryRoot = resolve3(import.meta.dirname, "../../..");
-  const command = resolve3(repositoryRoot, "packages/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron");
-  const entry = resolve3(repositoryRoot, "packages/desktop/dist/main.js");
+  const repositoryRoot = resolve4(import.meta.dirname, "../../..");
+  const command = resolve4(repositoryRoot, "packages/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron");
+  const entry = resolve4(repositoryRoot, "packages/desktop/dist/main.js");
   return existsSync2(command) && existsSync2(entry) ? { command, args: [entry] } : void 0;
 }
 function desktopResourceRoot(config) {
@@ -4746,6 +4967,7 @@ var HarnessPetRuntime = class {
   pendingQuestionCalls = /* @__PURE__ */ new Map();
   pendingApprovals = /* @__PURE__ */ new Map();
   pendingApprovalAnswers = /* @__PURE__ */ new Map();
+  resolvedApprovals = /* @__PURE__ */ new Map();
   pendingQuestionAnswers = /* @__PURE__ */ new Map();
   sessionActivities = /* @__PURE__ */ new Map();
   pendingCompletions = /* @__PURE__ */ new Map();
@@ -4790,6 +5012,7 @@ var HarnessPetRuntime = class {
     await this.apiEventsTask;
     this.apiEventsTask = void 0;
     this.pendingApprovalAnswers.clear();
+    this.resolvedApprovals.clear();
     this.pendingQuestionAnswers.clear();
     this.desktop?.kill();
     this.desktop = void 0;
@@ -4814,7 +5037,7 @@ var HarnessPetRuntime = class {
     if (!address || typeof address === "string") return false;
     const child = spawn(launch.command, launch.args, {
       stdio: ["pipe", "ignore", "pipe"],
-      env: { ...process.env, XY_DEEPSEEK_PET_CHILD: "1" }
+      env: cleanElectronRuntimeEnv(process.env, { XY_DEEPSEEK_PET_CHILD: "1" })
     });
     let stderr = "";
     child.stderr?.setEncoding("utf8");
@@ -4865,8 +5088,8 @@ var HarnessPetRuntime = class {
     const socket = this.authenticatedDesktop();
     if (!socket) throw new Error("Open the desktop pet before importing a pet package");
     const requestId = randomUUID();
-    const directory = resolve3(homedir3(), ".xy-deepseek-pet", "imports");
-    const archivePath = resolve3(directory, `${requestId}.zip`);
+    const directory = resolve4(homedir4(), ".xy-deepseek-pet", "imports");
+    const archivePath = resolve4(directory, `${requestId}.zip`);
     await mkdir3(directory, { recursive: true, mode: 448 });
     await writeFile3(archivePath, bytes, { mode: 384 });
     return new Promise((resolveTheme, reject) => {
@@ -4890,7 +5113,7 @@ var HarnessPetRuntime = class {
     });
   }
   async createLauncher(name2, iconId, fileName, dataBase64) {
-    const packageRoot = resolve3(import.meta.dirname, "..");
+    const packageRoot = resolve4(import.meta.dirname, "..");
     const reopenDesktop = process.platform === "darwin" && this.desktopStatus();
     try {
       if (reopenDesktop) {
@@ -4902,8 +5125,12 @@ var HarnessPetRuntime = class {
       if (reopenDesktop) this.openDesktop();
     }
   }
+  createFinderQuickAction() {
+    const packageRoot = resolve4(import.meta.dirname, "..");
+    return installFileQuickAction(packageRoot, launcherNodeExecutable());
+  }
   async importThemeArchive(path, signal) {
-    const archivePath = resolve3(path);
+    const archivePath = resolve4(path);
     if (extname(archivePath).toLowerCase() !== ".zip") throw new Error("Pet theme must be a ZIP file");
     const metadata = await lstat(archivePath);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0 || metadata.size > 20 * 1024 * 1024) {
@@ -4929,6 +5156,7 @@ var HarnessPetRuntime = class {
     this.activeToolCalls.delete(String(agent.id));
     this.pendingQuestionCalls.delete(String(agent.id));
     this.pendingApprovals.delete(String(agent.id));
+    this.clearResolvedApprovals(String(agent.id));
     this.sessionActivities.delete(String(agent.id));
     if (this.selected === agent) this.selectLatest();
     this.publishAggregate();
@@ -4937,6 +5165,7 @@ var HarnessPetRuntime = class {
     if (!this.isRoot(agent)) return;
     this.touch(agent);
     this.selected = agent;
+    if (this.reconcileApprovalAudit(agent.session)) this.publishCurrentActivity(String(agent.id), Date.now());
     if (status === "running") {
       this.cancelPendingCompletion(String(agent.id));
       this.cancelReaction();
@@ -4959,6 +5188,7 @@ var HarnessPetRuntime = class {
     this.touch(agent);
     this.selected = agent;
     const sessionId = String(session.id);
+    if (this.reconcileApprovalAudit(session)) this.publishCurrentActivity(sessionId, event.time);
     const title = visibleSessionTitle(event);
     if (title) {
       this.updateSession(sessionId, { title, updatedAt: event.time });
@@ -4971,6 +5201,7 @@ var HarnessPetRuntime = class {
     }
     const approval = approvalAuditEvent(event);
     if (approval?.type === "approval/asked") {
+      if (this.wasApprovalResolved(sessionId, approval.data.id)) return;
       const approvals = this.pendingApprovals.get(sessionId) ?? /* @__PURE__ */ new Map();
       approvals.set(approval.data.id, approval.data.toolName);
       this.pendingApprovals.set(sessionId, approvals);
@@ -4978,6 +5209,7 @@ var HarnessPetRuntime = class {
       return;
     }
     if (approval?.type === "approval/decided") {
+      this.rememberResolvedApproval(sessionId, approval.data.id);
       this.pendingApprovals.get(sessionId)?.delete(approval.data.id);
       this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === approval.data.id);
       this.publishCurrentActivity(sessionId, approval.time);
@@ -5036,8 +5268,9 @@ var HarnessPetRuntime = class {
         if (!delta) break;
         const stream = `${this.assistantStreams.get(sessionId) ?? ""}${delta}`.slice(0, MAX_ACTIVITY_TEXT);
         this.assistantStreams.set(sessionId, stream);
-        const activityText = boundedActivityText(stream);
-        const text = boundedStatusText(stream);
+        const visibleStream = stripThinkBlocks(stream);
+        const activityText = boundedActivityText(visibleStream);
+        const text = boundedStatusText(visibleStream);
         if (!text || !activityText) break;
         this.lastAssistantText.set(sessionId, text);
         this.upsertAssistantActivity(sessionId, activityText, event.time);
@@ -5134,6 +5367,7 @@ var HarnessPetRuntime = class {
     if (payload.type === "approval/requested") {
       if (typeof payload.sessionId !== "string" || typeof payload.approvalId !== "string") return;
       const sessionId = payload.sessionId;
+      if (this.wasApprovalResolved(sessionId, payload.approvalId)) return;
       const agent = this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId);
       if (!agent || !this.isRoot(agent)) return;
       const requestId = String(frame.rpcId);
@@ -5153,6 +5387,7 @@ var HarnessPetRuntime = class {
     if (payload.type === "approval/resolved") {
       if (typeof payload.sessionId !== "string" || typeof payload.approvalId !== "string") return;
       const sessionId = payload.sessionId;
+      this.rememberResolvedApproval(sessionId, payload.approvalId);
       this.pendingApprovals.get(sessionId)?.delete(payload.approvalId);
       this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && pending.approvalId === payload.approvalId);
       this.publishCurrentActivity(sessionId, Date.now());
@@ -5241,6 +5476,7 @@ var HarnessPetRuntime = class {
         }
       });
       if (!receipt.accepted) throw new Error("not pending");
+      this.rememberResolvedApproval(pending.sessionId, pending.approvalId);
       this.clearApprovalAnswers((entry) => entry.requestId === pending.requestId);
       this.pendingApprovals.get(pending.sessionId)?.delete(String(pending.approvalId));
       this.publishCurrentActivity(pending.sessionId, Date.now());
@@ -5252,6 +5488,55 @@ var HarnessPetRuntime = class {
   clearApprovalAnswers(predicate) {
     for (const pending of [...this.pendingApprovalAnswers.values()]) {
       if (predicate(pending)) this.pendingApprovalAnswers.delete(pending.requestId);
+    }
+  }
+  reconcileApprovalAudit(session) {
+    const sessionId = String(session.id);
+    const pendingIds = new Set(this.pendingApprovals.get(sessionId)?.keys() ?? []);
+    for (const pending of this.pendingApprovalAnswers.values()) {
+      if (pending.sessionId === sessionId) pendingIds.add(pending.approvalId);
+    }
+    if (pendingIds.size === 0) return false;
+    const decided = /* @__PURE__ */ new Set();
+    for (const event of session.events) {
+      const approval = approvalAuditEvent(event);
+      if (approval?.type === "approval/decided" && pendingIds.has(approval.data.id)) decided.add(approval.data.id);
+    }
+    if (decided.size === 0) return false;
+    const approvals = this.pendingApprovals.get(sessionId);
+    for (const approvalId of decided) {
+      this.rememberResolvedApproval(sessionId, approvalId);
+      approvals?.delete(approvalId);
+    }
+    if (approvals?.size === 0) this.pendingApprovals.delete(sessionId);
+    this.clearApprovalAnswers((pending) => pending.sessionId === sessionId && decided.has(pending.approvalId));
+    return true;
+  }
+  approvalKey(sessionId, approvalId) {
+    return `${sessionId}\0${approvalId}`;
+  }
+  rememberResolvedApproval(sessionId, approvalId, time = Date.now()) {
+    const key = this.approvalKey(sessionId, approvalId);
+    this.resolvedApprovals.delete(key);
+    this.resolvedApprovals.set(key, time);
+    while (this.resolvedApprovals.size > MAX_RESOLVED_APPROVALS) {
+      const oldest = this.resolvedApprovals.keys().next().value;
+      if (oldest === void 0) break;
+      this.resolvedApprovals.delete(oldest);
+    }
+  }
+  wasApprovalResolved(sessionId, approvalId, now = Date.now()) {
+    const key = this.approvalKey(sessionId, approvalId);
+    const resolvedAt = this.resolvedApprovals.get(key);
+    if (resolvedAt === void 0) return false;
+    if (now - resolvedAt <= RESOLVED_APPROVAL_TTL_MS) return true;
+    this.resolvedApprovals.delete(key);
+    return false;
+  }
+  clearResolvedApprovals(sessionId) {
+    const prefix = `${sessionId}\0`;
+    for (const key of this.resolvedApprovals.keys()) {
+      if (key.startsWith(prefix)) this.resolvedApprovals.delete(key);
     }
   }
   clearQuestionAnswers(predicate) {
@@ -5284,7 +5569,7 @@ var HarnessPetRuntime = class {
         this.send(socket, { type: "snapshot", snapshot: this.snapshot });
         return;
       }
-      if (value.type === "chat") this.submitChat(socket, value.requestId, value.text, value.sessionId);
+      if (value.type === "chat") void this.submitChat(socket, value.requestId, value.text, value.sessionId, value.images);
       if (value.type === "approval-decision") void this.decideApproval(socket, value);
       if (value.type === "question-answer") void this.answerQuestion(socket, value);
       if (value.type === "focus") this.openDesktop();
@@ -5300,22 +5585,45 @@ var HarnessPetRuntime = class {
       clearTimeout(authTimer);
     });
   }
-  submitChat(socket, requestId, text, sessionId) {
+  async submitChat(socket, requestId, text, sessionId, images = []) {
     const agent = sessionId ? this.ctx.agents.roots().find((candidate) => String(candidate.id) === sessionId) : this.selectLatest();
     if (agent && !this.isRoot(agent)) {
-      return this.send(socket, { type: "chat-result", requestId, ok: false, error: "The selected session is not eligible." });
+      this.send(socket, { type: "chat-result", requestId, ok: false, error: "The selected session is not eligible." });
+      return;
     }
-    if (!agent) return this.send(socket, { type: "chat-result", requestId, ok: false, error: "No active Harness session." });
+    if (!agent) {
+      this.send(socket, { type: "chat-result", requestId, ok: false, error: "No active Harness session." });
+      return;
+    }
     try {
-      agent.followup(createUserMessage({
-        content: [{ type: "text", text: text.trim() }],
-        source: { kind: "user" }
-      }));
+      if (images.length) {
+        const apiProxy = this.ctx.apiProxy;
+        if (!apiProxy) throw new Error("official API Proxy is unavailable");
+        const content = [
+          ...text.trim() ? [{ type: "text", text: text.trim() }] : [],
+          ...images
+        ];
+        const response = await apiProxy.sessions.prompt({
+          rpcId: randomUUID(),
+          payload: { sessionId: String(agent.id), mode: "queue", content }
+        });
+        if (!response.result.ok) throw new Error(response.result.error.message);
+      } else {
+        agent.followup(createUserMessage({
+          content: [{ type: "text", text: text.trim() }],
+          source: { kind: "user" }
+        }));
+      }
       this.touch(agent);
       this.acknowledge(String(agent.id));
       this.send(socket, { type: "chat-result", requestId, ok: true });
-    } catch {
-      this.send(socket, { type: "chat-result", requestId, ok: false, error: "Harness rejected the message." });
+    } catch (error) {
+      this.send(socket, {
+        type: "chat-result",
+        requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : "Harness rejected the message."
+      });
     }
   }
   publish(event) {
@@ -5579,7 +5887,7 @@ var HarnessPetRuntime = class {
     return this.selected;
   }
   rendezvousPath() {
-    return this.config.rendezvousPath ?? resolve3(homedir3(), ".xy-deepseek-pet", "bridge.json");
+    return this.config.rendezvousPath ?? resolve4(homedir4(), ".xy-deepseek-pet", "bridge.json");
   }
   async writeRendezvous() {
     const address = this.server?.address();

@@ -70,11 +70,13 @@ if (!schema.properties.animations.properties.walkLeft || !schema.properties.anim
 
 const soundProvenance = JSON.parse(await readFile(new URL('../packages/sounds/assets/provenance.json', import.meta.url), 'utf8'))
 if (soundProvenance.schemaVersion !== 1 || !Array.isArray(soundProvenance.assets) || soundProvenance.assets.length < 3) {
-  throw new Error('Sound provenance must contain the three placeholder assets')
+  throw new Error('Sound provenance must contain the three built-in assets')
 }
 for (const asset of soundProvenance.assets) {
-  if (asset.license !== 'CC0-1.0' || !Array.isArray(asset.channels) || asset.channels.length === 0) {
-    throw new Error(`${asset.id ?? 'unknown sound'} is missing CC0 provenance or channel compatibility`)
+  const licenseIsAccepted = asset.license === 'CC0-1.0'
+    || (asset.license === 'MIT' && asset.source === 'project-owner-provided asset')
+  if (!licenseIsAccepted || !asset.author || !asset.source || !Array.isArray(asset.channels) || asset.channels.length === 0) {
+    throw new Error(`${asset.id ?? 'unknown sound'} is missing accepted provenance or channel compatibility`)
   }
   const bytes = await readFile(new URL(`../packages/sounds/assets/${asset.file}`, import.meta.url))
   const digest = createHash('sha256').update(bytes).digest('hex')
@@ -88,8 +90,8 @@ const publicPackages = [
 ]
 for (const [file, expectedName] of publicPackages) {
   const manifest = JSON.parse(await readFile(new URL(`../${file}`, import.meta.url), 'utf8'))
-  if (manifest.name !== expectedName || manifest.version !== '0.1.0' || manifest.private === true) {
-    throw new Error(`${file} must describe the public ${expectedName}@0.1.0 package`)
+  if (manifest.name !== expectedName || manifest.version !== '0.1.1' || manifest.private === true) {
+    throw new Error(`${file} must describe the public ${expectedName}@0.1.1 package`)
   }
   if (manifest.publishConfig?.access !== 'public' || manifest.license !== 'MIT') {
     throw new Error(`${file} is missing public publish metadata`)
@@ -97,8 +99,8 @@ for (const [file, expectedName] of publicPackages) {
 }
 
 const petPackage = JSON.parse(await readFile(new URL('../packages/harness-plugin/package.json', import.meta.url), 'utf8'))
-if (petPackage.dependencies?.['xy-deepseek-desktop'] !== 'workspace:0.1.0') {
-  throw new Error('xy-deepseek-pet must publish an exact 0.1.0 desktop runtime dependency')
+if (petPackage.dependencies?.['xy-deepseek-desktop'] !== 'workspace:0.1.1') {
+  throw new Error('xy-deepseek-pet must publish an exact 0.1.1 desktop runtime dependency')
 }
 for (const entry of ['assets', 'lib', 'runtime/launch.mjs', 'runtime/launcher-utils.mjs']) {
   if (!petPackage.files?.includes(entry)) throw new Error(`xy-deepseek-pet package is missing ${entry}`)

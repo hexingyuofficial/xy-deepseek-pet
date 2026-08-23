@@ -65,6 +65,7 @@ export class PlatformSoundPlayer implements SoundPlayer {
       return Promise.resolve()
     }
 
+    this.logger.debug?.(`sound playback starting: asset=${asset.id} volume=${Math.min(1, Math.max(0, volume)).toFixed(2)}`)
     return new Promise((resolvePlayback) => {
       const child = spawn(launch.command, launch.args, {
         shell: false,
@@ -73,16 +74,17 @@ export class PlatformSoundPlayer implements SoundPlayer {
       })
       this.children.add(child)
       let finished = false
-      const finish = () => {
+      const finish = (detail: string) => {
         if (finished) return
         finished = true
         this.children.delete(child)
+        this.logger.debug?.(`sound playback finished: asset=${asset.id} ${detail}`)
         resolvePlayback()
       }
-      child.once('exit', finish)
+      child.once('exit', (code, signal) => finish(`code=${code ?? 'null'} signal=${signal ?? 'none'}`))
       child.once('error', (error) => {
         this.logger.warn?.(`sound playback failed: ${String(error)}`)
-        finish()
+        finish('outcome=spawn-error')
       })
     })
   }

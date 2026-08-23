@@ -65,8 +65,10 @@ describe('desktop pet fling policy', () => {
       workArea,
       0,
     )
-    expect(first.x).toBeCloseTo(1_168.5)
-    expect(first.y).toBe(-150)
+    expect(first.x).toBeLessThan(1_168.5)
+    expect(first.x).toBeGreaterThanOrEqual(-88.5)
+    expect(first.y).toBeGreaterThan(-150)
+    expect(first.y).toBeLessThanOrEqual(552)
     expect(first.velocityX).toBeLessThan(0)
     expect(first.velocityY).toBeGreaterThan(0)
   })
@@ -79,7 +81,7 @@ describe('desktop pet fling policy', () => {
       workArea,
       0,
     )
-    expect(step.y).toBe(0)
+    expect(step.y).toBeGreaterThanOrEqual(0)
     expect(step.velocityY).toBeGreaterThan(0)
   })
 
@@ -91,9 +93,73 @@ describe('desktop pet fling policy', () => {
       workArea,
       0,
     )
-    expect(step.y).toBe(0)
+    expect(step.y).toBeGreaterThanOrEqual(0)
     expect(step.velocityY).toBeGreaterThan(0)
     expect(step.velocityX).toBeGreaterThan(0)
+  })
+
+  it('reflects an outward velocity when Electron reports an exact edge position', () => {
+    const step = stepFling(
+      { x: 500, y: 0, velocityX: 900, velocityY: -0.01 },
+      0,
+      { offsetX: 0, offsetY: 0, width: 183, height: 198 },
+      workArea,
+      0,
+    )
+    expect(step.y).toBe(0)
+    expect(step.velocityY).toBeGreaterThan(0)
+  })
+
+  it('keeps the normal component after repeated quantized edge contacts', () => {
+    const narrowWorkArea = { x: 0, y: 0, width: 800, height: 240 }
+    const pet = { offsetX: 0, offsetY: 0, width: 120, height: 120 }
+    let motion = { x: 200, y: 60, velocityX: 1_600, velocityY: -3_600 }
+    let contacts = 0
+    let outwardEdgeContact: 'top' | 'bottom' | undefined
+
+    for (let frame = 0; frame < 240 && Math.hypot(motion.velocityX, motion.velocityY) >= 28; frame += 1) {
+      const next = stepFling(motion, 1 / 60, pet, narrowWorkArea, 0)
+      const roundedY = Math.round(next.y)
+      if (outwardEdgeContact === 'top') expect(next.velocityY).toBeGreaterThan(0)
+      if (outwardEdgeContact === 'bottom') expect(next.velocityY).toBeLessThan(0)
+      outwardEdgeContact = undefined
+      if (roundedY === 0 || roundedY === 120) {
+        contacts += 1
+        if (roundedY === 0 && next.velocityY < 0) outwardEdgeContact = 'top'
+        if (roundedY === 120 && next.velocityY > 0) outwardEdgeContact = 'bottom'
+      }
+      // Simulate Electron returning integer window coordinates to the caller.
+      motion = { ...next, x: Math.round(next.x), y: roundedY }
+    }
+
+    expect(contacts).toBeGreaterThan(2)
+  })
+
+  it('preserves overshoot distance instead of sticking to an edge', () => {
+    const step = stepFling(
+      { x: 500, y: 10, velocityX: 0, velocityY: -2_000 },
+      0.016,
+      { offsetX: 0, offsetY: 0, width: 183, height: 198 },
+      workArea,
+      0,
+    )
+    expect(step.y).toBeGreaterThan(0)
+    expect(step.velocityY).toBeGreaterThan(0)
+  })
+
+  it('derives collision edges from a negative-origin display and scaled pet box', () => {
+    const secondaryDisplay = { x: -1_920, y: -180, width: 1_920, height: 1_080 }
+    const scaledPet = { offsetX: 44.25, offsetY: 75.5, width: 91.5, height: 99 }
+    const minimumY = secondaryDisplay.y - scaledPet.offsetY
+    const step = stepFling(
+      { x: -900, y: minimumY, velocityX: 120, velocityY: -800 },
+      0,
+      scaledPet,
+      secondaryDisplay,
+      0,
+    )
+    expect(step.y).toBe(minimumY)
+    expect(step.velocityY).toBeGreaterThan(0)
   })
 
   it('comes to rest through resistance', () => {

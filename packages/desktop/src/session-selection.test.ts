@@ -1,6 +1,13 @@
 import type { PetSnapshot } from '@xy-deepseek-pet/protocol'
 import { describe, expect, it } from 'vitest'
-import { bubbleSessions, recentReplyableSessions, replyableSessions, sessionActivitiesForPanel } from './session-selection.js'
+import {
+  bubbleSessions,
+  recentReplyableSessions,
+  replyableSessions,
+  sessionActivitiesForPanel,
+  sessionBubbleDismissal,
+  shouldReleaseSessionBubbleDismissal,
+} from './session-selection.js'
 
 const snapshot: PetSnapshot = {
   state: 'idle',
@@ -33,6 +40,31 @@ describe('desktop session selection', () => {
   it('keeps a dismissed unread session completely hidden', () => {
     const unread = { ...snapshot, sessions: [{ ...snapshot.sessions![0]!, unread: true }] }
     expect(bubbleSessions(unread, new Set(['recent']))).toEqual([])
+  })
+
+  it('keeps an active-turn dismissal through streaming text and tool transitions', () => {
+    const thinking = { ...snapshot.sessions![0]!, state: 'thinking' as const, turn: 7, text: 'Checking files' }
+    const dismissal = sessionBubbleDismissal(thinking)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, text: 'Found the config' })).toBe(false)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, state: 'working', text: 'Using read_file' })).toBe(false)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, state: 'thinking', text: 'Continuing' })).toBe(false)
+  })
+
+  it('releases an active-turn dismissal only for attention, completion, failure, or a new turn', () => {
+    const thinking = { ...snapshot.sessions![0]!, state: 'thinking' as const, turn: 7 }
+    const dismissal = sessionBubbleDismissal(thinking)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, state: 'needsInput' })).toBe(true)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, state: 'complete' })).toBe(true)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, state: 'error' })).toBe(true)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...thinking, turn: 8 })).toBe(true)
+  })
+
+  it('keeps a dismissed completed result hidden until another run starts', () => {
+    const complete = { ...snapshot.sessions![0]!, state: 'complete' as const, turn: 7, text: 'Done' }
+    const dismissal = sessionBubbleDismissal(complete)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...complete, text: 'Final answer' })).toBe(false)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...complete, state: 'idle' })).toBe(false)
+    expect(shouldReleaseSessionBubbleDismissal(dismissal, { ...complete, state: 'thinking', turn: 8 })).toBe(true)
   })
 
   it('falls back to the aggregate session when no summaries are present', () => {

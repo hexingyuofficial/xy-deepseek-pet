@@ -1,4 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { appendFile, mkdir } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -35,6 +38,14 @@ export { SoundController, type SoundSettingsSnapshot, type SoundView } from './c
 export const name = 'xy-deepseek-sounds'
 export const inject = ['agents', 'systemPrompt', 'tools']
 
+function soundDiagnostic(message: string): void {
+  const path = join(homedir(), '.xy-deepseek-pet', 'sound-diagnostic.log')
+  const line = `${new Date().toISOString()} ${message.replace(/[\r\n]+/g, ' ').slice(0, 500)}\n`
+  void mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    .then(() => appendFile(path, line, { encoding: 'utf8', mode: 0o600 }))
+    .catch(() => undefined)
+}
+
 export class SoundNotificationRuntime {
   private constructor(private readonly controller: SoundController) {}
 
@@ -59,16 +70,27 @@ export class SoundNotificationRuntime {
 
 export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   const logger = ctx.logger('xy-deepseek-sounds')
-  const controller = await SoundController.create(config, new PlatformSoundPlayer(process.platform, logger))
+  const diagnosticLogger = {
+    debug(message: string) { logger.debug?.(message); soundDiagnostic(message) },
+    warn(message: string) { logger.warn(message); soundDiagnostic(`warning: ${message}`) },
+  }
+  const controller = await SoundController.create(config, new PlatformSoundPlayer(process.platform, diagnosticLogger))
   registerSoundAgentCapabilities(ctx, controller)
   new SoundSettingsGateway(ctx, controller)
   ctx.on('session/event', (session, event) => {
     if (controller.config.rootSessionsOnly) {
       const agent = ctx.agents.get(session.id)
-      if (!agent || !ctx.agents.roots().includes(agent)) return
+      if (!agent || !ctx.agents.roots().includes(agent)) {
+        if (event.type === 'turn/end') soundDiagnostic(`completion ignored reason=non-root turn=${event.data.turn} outcome=${event.data.reason.kind}`)
+        return
+      }
     }
-    controller.onSessionEvent(session, event)
+    const accepted = controller.onSessionEvent(session, event)
+    if (event.type === 'turn/end') {
+      soundDiagnostic(`completion event turn=${event.data.turn} outcome=${event.data.reason.kind} accepted=${accepted}`)
+    }
   })
   ctx.effect(() => () => controller.stop(), 'xy-deepseek-sounds runtime')
   logger.info('sound notifications ready')
+  soundDiagnostic(`runtime ready platform=${process.platform} muted=${controller.config.masterMute} completeEnabled=${controller.config.channels.turnComplete.enabled} rootOnly=${controller.config.rootSessionsOnly}`)
 }

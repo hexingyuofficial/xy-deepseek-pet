@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import http from 'node:http'
 import net from 'node:net'
-import { isHarnessHtml, parseBridgeDescriptor, parseLauncherLock } from './launcher-utils.mjs'
+import { cleanElectronRuntimeEnv, isHarnessHtml, parseBridgeDescriptor, parseLauncherLock } from './launcher-utils.mjs'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -19,6 +19,10 @@ const launcherLogPath = join(runtimeRoot, 'launcher.log')
 const desktopPackageRoot = dirname(require.resolve('xy-deepseek-desktop/package.json'))
 const desktopCommand = process.execPath
 const desktopEntry = join(desktopPackageRoot, 'bin', 'cli.mjs')
+const finderComposeMarker = process.argv.indexOf('--finder-compose')
+const finderComposePaths = finderComposeMarker < 0 ? [] : process.argv.slice(finderComposeMarker + 1)
+  .filter((value) => value.length > 0 && value.length <= 4096 && (value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)))
+  .slice(0, 8)
 
 const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 const defaultClientUrl = 'http://127.0.0.1:3080/'
@@ -147,12 +151,13 @@ function findDsh() {
 
 function launchDesktop() {
   if (!existsSync(desktopCommand) || !existsSync(desktopEntry)) throw new Error('Desktop build is missing. Run pnpm install && pnpm build first.')
-  const child = spawn(desktopCommand, [desktopEntry, `--bridge-file=${bridgePath}`], {
+  const composeArgs = finderComposePaths.length ? ['--finder-compose', String(finderComposePaths.length), ...finderComposePaths] : []
+  const child = spawn(desktopCommand, [desktopEntry, `--bridge-file=${bridgePath}`, ...composeArgs], {
     cwd: packageRoot,
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
-    env: { ...process.env, XY_DEEPSEEK_PET_BRIDGE_FILE: bridgePath },
+    env: cleanElectronRuntimeEnv(process.env, { XY_DEEPSEEK_PET_BRIDGE_FILE: bridgePath }),
   })
   child.once('error', (error) => log(`pet launch failed: ${error.message}`))
   child.unref()
@@ -182,12 +187,11 @@ async function startHarness() {
       cwd: packageRoot,
       detached: true,
       stdio: ['ignore', logFile, logFile],
-      env: {
-        ...process.env,
+      env: cleanElectronRuntimeEnv(process.env, {
         XY_DEEPSEEK_PET_SERVICE_OWNER: 'launcher',
         XY_DEEPSEEK_PET_DESKTOP_COMMAND: desktopCommand,
         XY_DEEPSEEK_PET_DESKTOP_ENTRY: desktopEntry,
-      },
+      }),
     })
     await new Promise((resolveSpawn, rejectSpawn) => {
       service.once('spawn', resolveSpawn)
@@ -227,7 +231,7 @@ async function main() {
     log('another launcher is starting; waiting for it')
     await waitForReadyHarness(undefined)
     const readyBridge = readBridge()
-    openClient(readyBridge?.clientUrl ?? defaultClientUrl)
+    if (!finderComposePaths.length) openClient(readyBridge?.clientUrl ?? defaultClientUrl)
     const bridge = await waitForBridge(5_000)
     if (bridge) launchDesktop()
     return
@@ -239,7 +243,7 @@ async function main() {
     const service = webState === 'harness' ? undefined : await startHarness()
     await waitForReadyHarness(service)
     bridge ??= readBridge()
-    openClient(bridge?.clientUrl ?? defaultClientUrl)
+    if (!finderComposePaths.length) openClient(bridge?.clientUrl ?? defaultClientUrl)
     if (!bridge) bridge = await waitForBridge(12_000)
     if (bridge) launchDesktop()
     else log('Harness opened, but the pet bridge was not available within 12 seconds')

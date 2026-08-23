@@ -1,6 +1,6 @@
 {
   "name": "xy-deepseek-pet-workspace",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Unofficial desktop companion for DeepSeek Harness",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "dev": "pnpm --filter xy-deepseek-desktop dev",
     "start": "pnpm --filter xy-deepseek-desktop start",
     "test": "vitest run",
+    "package:test": "node scripts/create-test-bundle.mjs",
     "verify": "pnpm verify:repository && pnpm verify:theme",
     "preview:readme": "node scripts/preview-readme.mjs",
     "verify:repository": "node scripts/verify-repository.mjs",

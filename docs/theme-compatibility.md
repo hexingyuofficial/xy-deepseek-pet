@@ -80,7 +80,7 @@ Native V2 packs may declare any number of regular completion animations, jackpot
 
 ## User flow
 
-Theme selection and ZIP import are exposed in the pet group in Harness General settings. The managed importer validates native and Codex/Petdex packages before activation and does not introduce a second desktop settings dialog.
+Theme selection and ZIP import are exposed under Harness Settings > Plugins > Desktop pet. The managed importer validates native and Codex/Petdex packages before activation and does not introduce a second desktop settings dialog.
 
 Local discovery of conventional Codex or Petdex folders may be offered after the user opens the import flow. The application does not scan home directories silently at startup. Imported source locations are not watched, and an invalid update cannot replace the active theme.
 

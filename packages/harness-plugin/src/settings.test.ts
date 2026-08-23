@@ -7,10 +7,14 @@ describe('pet settings', () => {
     expect(resolvePetStats({ treasuresFound: -1 }).treasuresFound).toBe(0)
   })
 
-  it('follows the system, opens Harness on long press, and keeps auto launch opt-in', () => {
+  it('defaults to system voice input, opens Harness on double click, and keeps auto launch opt-in', () => {
     const settings = resolvePetSettings()
     expect(settings.locale).toBe('system')
-    expect(settings.activationGesture).toBe('longPress')
+    expect(settings.doubleClickAction).toBe('openHarness')
+    expect(settings.longPressAction).toBe('voice')
+    expect(settings.voiceInputEnabled).toBe(true)
+    expect(settings.voiceProvider).toBe('system')
+    expect(settings.voiceLanguage).toBe('system')
     expect(settings.autoLaunch).toBe(false)
     expect(settings.menuActions).toEqual(['open-client', 'chat', 'settings'])
     expect(settings.wanderFrequency).toBe(70)
@@ -25,9 +29,34 @@ describe('pet settings', () => {
     expect(settings.teleportOpensRecentChat).toBe(false)
   })
 
-  it('preserves either supported Harness activation gesture', () => {
-    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, activationGesture: 'doubleClick' }).activationGesture).toBe('doubleClick')
-    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, activationGesture: 'longPress' }).activationGesture).toBe('longPress')
+  it('validates system voice preferences', () => {
+    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, doubleClickAction: 'openHarness', longPressAction: 'openHarness', voiceLanguage: 'zh-CN' })).toMatchObject({
+      voiceInputEnabled: false,
+      voiceProvider: 'system',
+      voiceLanguage: 'zh-CN',
+    })
+    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, voiceLanguage: 'invalid' as never }).voiceLanguage).toBe('system')
+  })
+
+  it('configures double-click and long-press actions independently', () => {
+    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, doubleClickAction: 'voice', longPressAction: 'openHarness' })).toMatchObject({
+      doubleClickAction: 'voice', longPressAction: 'openHarness', voiceInputEnabled: true,
+    })
+    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, doubleClickAction: 'none', longPressAction: 'none' })).toMatchObject({
+      doubleClickAction: 'none', longPressAction: 'none', voiceInputEnabled: false,
+    })
+    expect(resolvePetSettings({ ...DEFAULT_PET_SETTINGS, doubleClickAction: 'openRecentChat', longPressAction: 'openRecentChat' })).toMatchObject({
+      doubleClickAction: 'openRecentChat', longPressAction: 'openRecentChat', voiceInputEnabled: false,
+    })
+  })
+
+  it('migrates the previous gesture settings without unexpectedly enabling voice', () => {
+    expect(resolvePetSettings({ activationGesture: 'longPress', voiceInputEnabled: false } as never)).toMatchObject({
+      doubleClickAction: 'openHarness', longPressAction: 'openHarness', voiceInputEnabled: false,
+    })
+    expect(resolvePetSettings({ activationGesture: 'doubleClick', voiceInputEnabled: true } as never)).toMatchObject({
+      doubleClickAction: 'openHarness', longPressAction: 'voice', voiceInputEnabled: true,
+    })
   })
 
   it('allows the pet to be hidden from full-screen Spaces', () => {

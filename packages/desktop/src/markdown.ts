@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it'
+import { stripThinkBlocks } from '@xy-deepseek-pet/protocol'
 
 const markdown = new MarkdownIt({
   breaks: true,
@@ -14,9 +15,9 @@ markdown.renderer.rules.link_close = () => ''
 markdown.renderer.rules.image = (tokens, index) => markdown.utils.escapeHtml(tokens[index]?.content ?? '')
 
 export function renderMarkdown(text: string): string {
-  return markdown.render(text)
+  return markdown.render(stripThinkBlocks(text))
 }
 
 export function renderMarkdownInline(text: string): string {
-  return markdown.renderInline(text.replace(/[\r\n]+/g, ' '))
+  return markdown.renderInline(stripThinkBlocks(text).replace(/[\r\n]+/g, ' '))
 }

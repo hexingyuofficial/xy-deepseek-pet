@@ -1,28 +1,32 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, screen, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { statSync, watch, type FSWatcher } from 'node:fs'
-import { readFile, mkdir, rename, writeFile } from 'node:fs/promises'
+import { appendFile, readFile, mkdir, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import WebSocket from 'ws'
 import {
+  DEFAULT_PET_ACCENT_COLOR,
   initialSnapshot,
   isBridgeClientMessage,
   isBridgeServerMessage,
   petSettingsUrl,
   type BridgeClientMessage,
   type BridgeServerMessage,
+  type PetChatImage,
   type PetQuestionAnswer,
   type PetSnapshot,
 } from '@xy-deepseek-pet/protocol'
 import { ThemeManager, type LoadedTheme } from './theme.js'
 import { shouldEnterSleep, stateAfterInteraction } from './inactivity-policy.js'
 import { draggedWindowPosition, normalizeWindowPosition } from './drag-position.js'
-import { clampWindowPosition, resolvePetOffset, resolvePetPlacement, selectPetWindowDock, type WindowDock, type WorkArea } from './window-layout.js'
-import { bridgeFileForStartup } from './bridge-startup.js'
-import { MAC_PET_ACTIVATION_POLICY, macWindowVisibilityPolicy } from './window-visibility.js'
+import { clampWindowPosition, companionWindowSize, preferredPetOffsetForBubble, resolvePetOffset, resolvePetPlacement, selectPetWindowDock, type PetBubbleSide, type WindowDock, type WorkArea } from './window-layout.js'
+import { bridgeFileForStartup, finderComposePathsFromArgs } from './bridge-startup.js'
+import { MAC_PET_ACTIVATION_POLICY, macWindowVisibilityPolicy, summonWindowActivation } from './window-visibility.js'
 import { themeDisplayBox } from './theme-layout.js'
+import { analyzePcm16Wav, MAX_VOICE_WAV_BYTES } from './voice-audio.js'
+import { isNoSpeechDetectedError, SystemVoiceTranscriber, type VoiceLanguage } from './voice-transcription.js'
 import {
   estimateFlingVelocity,
   facingForFling,
@@ -45,6 +49,7 @@ import {
 
 interface Preferences {
   themeId: string
+  accentColor: string
   reducedMotion: boolean
   bubbleVisible: boolean
   walkingEnabled: boolean
@@ -59,7 +64,11 @@ interface Preferences {
   teleportShortcut: string
   teleportOpensRecentChat: boolean
   scale: number
-  activationGesture: 'doubleClick' | 'longPress'
+  doubleClickAction: 'none' | 'voice' | 'openRecentChat' | 'openHarness'
+  longPressAction: 'none' | 'voice' | 'openRecentChat' | 'openHarness'
+  voiceInputEnabled: boolean
+  voiceProvider: 'system'
+  voiceLanguage: VoiceLanguage
   locale: 'system' | 'zh-CN' | 'en'
   autoLaunch: boolean
   menuActions: string[]
@@ -82,6 +91,7 @@ interface MenuExtension {
 
 const DEFAULT_PREFERENCES: Preferences = {
   themeId: 'whale-default',
+  accentColor: DEFAULT_PET_ACCENT_COLOR,
   reducedMotion: false,
   bubbleVisible: true,
   walkingEnabled: true,
@@ -96,14 +106,18 @@ const DEFAULT_PREFERENCES: Preferences = {
   teleportShortcut: 'CommandOrControl+Shift+P',
   teleportOpensRecentChat: false,
   scale: 1,
-  activationGesture: 'longPress',
+  doubleClickAction: 'openHarness',
+  longPressAction: 'voice',
+  voiceInputEnabled: true,
+  voiceProvider: 'system',
+  voiceLanguage: 'system',
   locale: 'system',
   autoLaunch: false,
   menuActions: ['open-client', 'chat', 'settings'],
 }
 const BASE_WINDOW_WIDTH = 360
 const BASE_WINDOW_HEIGHT = 348
-const MAX_WIRE_BYTES = 64 * 1024
+const MAX_WIRE_BYTES = 12 * 1024 * 1024
 const MIN_SCALE = 0.2
 const MAX_SCALE = 2
 const SCALE_STEP = 0.05
@@ -113,10 +127,12 @@ let themeManager: ThemeManager
 let activeTheme: LoadedTheme
 let preferences: Preferences
 let preferencesPath: string
+let preferencesSaveQueue: Promise<void> = Promise.resolve()
 let snapshot: PetSnapshot = initialSnapshot()
 let bridge: DesktopBridge | undefined
 let dragStart: { cursor: { x: number; y: number }; lastCursor: { x: number; y: number }; window: { x: number; y: number }; samples: FlingSample[] } | undefined
 let currentWindowDock: WindowDock | undefined
+let pendingFinderComposePaths: string[] = []
 let petStageOffset = { x: 0, y: 0 }
 let wanderTimer: NodeJS.Timeout | undefined
 let mouseChaseTimer: NodeJS.Timeout | undefined
@@ -130,14 +146,24 @@ let flingAnimated = false
 let flingLastStepAt = 0
 let inactivityTimer: NodeJS.Timeout | undefined
 let preferencesWatcher: FSWatcher | undefined
+let resourceRoot: string
 let preferencesReloadTimer: NodeJS.Timeout | undefined
 let menuExtensions: MenuExtension[] = []
 let lastInteractionAt = Date.now()
 let registeredTeleportShortcut: string | undefined
 let textInputActive = false
+let voiceTranscriptionActive = false
+const voiceDiagnosticPath = join(homedir(), '.xy-deepseek-pet', 'voice-diagnostic.log')
 const isDevelopment = process.argv.includes('--dev')
 const isErrorDemo = isDevelopment && process.argv.includes('--demo-error')
 const isApprovalDemo = isDevelopment && process.argv.includes('--demo-approval')
+
+function recordVoiceDiagnostic(message: string): void {
+  const line = `${new Date().toISOString()} ${message.replace(/[\r\n]+/g, ' ').slice(0, 500)}\n`
+  void mkdir(dirname(voiceDiagnosticPath), { recursive: true, mode: 0o700 })
+    .then(() => appendFile(voiceDiagnosticPath, line, { encoding: 'utf8', mode: 0o600 }))
+    .catch(() => undefined)
+}
 
 // Electron derives its per-user data directory from the app name. Set it before
 // the app becomes ready so imports and the Harness settings service share a root.
@@ -167,15 +193,27 @@ function requireStat(path: string): boolean {
 
 async function readPreferences(): Promise<Preferences> {
   try {
-    const parsed = JSON.parse(await readFile(preferencesPath, 'utf8')) as Partial<Preferences>
+    const parsed = JSON.parse(await readFile(preferencesPath, 'utf8')) as Partial<Preferences> & { activationGesture?: 'doubleClick' | 'longPress' }
     const scale = normalizeScale(parsed.scale)
     return {
       ...DEFAULT_PREFERENCES,
       ...parsed,
+      accentColor: typeof parsed.accentColor === 'string' && /^#[0-9a-f]{6}$/i.test(parsed.accentColor)
+        ? parsed.accentColor.toLowerCase()
+        : DEFAULT_PREFERENCES.accentColor,
       scale,
-      activationGesture: parsed.activationGesture === 'doubleClick' || parsed.activationGesture === 'longPress'
-        ? parsed.activationGesture
-        : DEFAULT_PREFERENCES.activationGesture,
+      doubleClickAction: parsed.doubleClickAction === 'none' || parsed.doubleClickAction === 'voice' || parsed.doubleClickAction === 'openRecentChat' || parsed.doubleClickAction === 'openHarness'
+        ? parsed.doubleClickAction
+        : DEFAULT_PREFERENCES.doubleClickAction,
+      longPressAction: parsed.longPressAction === 'none' || parsed.longPressAction === 'voice' || parsed.longPressAction === 'openRecentChat' || parsed.longPressAction === 'openHarness'
+        ? parsed.longPressAction
+        : parsed.voiceInputEnabled === false && parsed.activationGesture === 'longPress'
+          ? 'openHarness'
+          : DEFAULT_PREFERENCES.longPressAction,
+      voiceInputEnabled: parsed.doubleClickAction === 'voice' || parsed.longPressAction === 'voice'
+        || (parsed.doubleClickAction === undefined && parsed.longPressAction === undefined && parsed.voiceInputEnabled !== false),
+      voiceProvider: 'system',
+      voiceLanguage: parsed.voiceLanguage === 'zh-CN' || parsed.voiceLanguage === 'en-US' ? parsed.voiceLanguage : 'system',
       wanderFrequency: normalizeMovementLevel(parsed.wanderFrequency, DEFAULT_PREFERENCES.wanderFrequency),
       wanderDistance: normalizeMovementLevel(parsed.wanderDistance, DEFAULT_PREFERENCES.wanderDistance),
       mouseChaseEnabled: parsed.mouseChaseEnabled === true,
@@ -214,11 +252,15 @@ function normalizeAccelerator(value: unknown): string {
     : DEFAULT_PREFERENCES.teleportShortcut
 }
 
-async function savePreferences(): Promise<void> {
-  await mkdir(dirname(preferencesPath), { recursive: true })
-  const staging = `${preferencesPath}.partial-${process.pid}`
-  await writeFile(staging, `${JSON.stringify(preferences, null, 2)}\n`, { mode: 0o600 })
-  await rename(staging, preferencesPath)
+function savePreferences(): Promise<void> {
+  const content = `${JSON.stringify(preferences, null, 2)}\n`
+  preferencesSaveQueue = preferencesSaveQueue.catch(() => undefined).then(async () => {
+    await mkdir(dirname(preferencesPath), { recursive: true })
+    const staging = `${preferencesPath}.partial-${process.pid}-${randomUUID()}`
+    await writeFile(staging, content, { mode: 0o600 })
+    await rename(staging, preferencesPath)
+  })
+  return preferencesSaveQueue
 }
 
 function clampPosition(position: { x: number; y: number }, preferredWorkArea?: WorkArea): { x: number; y: number } {
@@ -309,9 +351,32 @@ function initialPosition(): { x: number; y: number } {
 }
 
 function windowDimensions(): { width: number; height: number } {
-  return {
-    width: Math.max(BASE_WINDOW_WIDTH, Math.round(260 * preferences.scale + 96)),
-    height: Math.max(BASE_WINDOW_HEIGHT, Math.round(224 * preferences.scale + 132)),
+  const required = companionWindowSize(currentPetSize())
+  return { width: Math.max(BASE_WINDOW_WIDTH, required.width), height: Math.max(BASE_WINDOW_HEIGHT, required.height) }
+}
+
+function placePetForBubbleSide(side: PetBubbleSide): void {
+  if (!petWindow || petWindow.isDestroyed()) return
+  const petPosition = currentPetPosition()
+  const petSize = currentPetSize()
+  const [width = 0, height = 0] = petWindow.getSize()
+  const windowSize = { width, height }
+  const preferred = preferredPetOffsetForBubble(side, windowSize, petSize)
+  const display = screen.getDisplayNearestPoint(petPosition).bounds
+  const requestedWindowPosition = clampWindowPosition({
+    x: petPosition.x - preferred.x,
+    y: petPosition.y - preferred.y,
+  }, windowSize, display)
+  try {
+    petWindow.setPosition(requestedWindowPosition.x, requestedWindowPosition.y)
+    const [actualX = requestedWindowPosition.x, actualY = requestedWindowPosition.y] = petWindow.getPosition()
+    const actualWindowPosition = { x: actualX, y: actualY }
+    const actualOffset = resolvePetOffset(petPosition, actualWindowPosition, windowSize, petSize)
+    setPetStageOffset(actualOffset)
+    updateWindowDock({ x: actualWindowPosition.x + actualOffset.x, y: actualWindowPosition.y + actualOffset.y }, petSize, true)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    console.warn(`Could not arrange the desktop pet around its bubble: ${detail.slice(0, 240)}`)
   }
 }
 
@@ -332,10 +397,15 @@ async function setScale(scale: Preferences['scale']): Promise<void> {
 
 function rendererPreferences() {
   return {
+    accentColor: preferences.accentColor,
     reducedMotion: preferences.reducedMotion,
     bubbleVisible: preferences.bubbleVisible,
     scale: preferences.scale,
-    activationGesture: preferences.activationGesture,
+    doubleClickAction: preferences.doubleClickAction,
+    longPressAction: preferences.longPressAction,
+    voiceInputEnabled: preferences.voiceInputEnabled,
+    voiceProvider: preferences.voiceProvider,
+    voiceLanguage: preferences.voiceLanguage,
     walkingEnabled: preferences.walkingEnabled,
     mouseChaseEnabled: preferences.mouseChaseEnabled,
     locale: preferences.locale === 'system' ? (app.getLocale().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en') : preferences.locale,
@@ -344,7 +414,7 @@ function rendererPreferences() {
   }
 }
 
-function teleportPetToCursor(): void {
+function summonPetToCursor(openChat: boolean, composePaths: readonly string[] = []): void {
   if (!petWindow || petWindow.isDestroyed()) return
   finishFling()
   finishMouseChase()
@@ -359,9 +429,38 @@ function teleportPetToCursor(): void {
   const [x = 0, y = 0] = petWindow.getPosition()
   preferences.position = { x, y }
   void savePreferences()
-  petWindow.showInactive()
+  const activation = summonWindowActivation(openChat)
+  if (activation === 'active') {
+    if (process.platform === 'darwin') app.focus({ steal: true })
+    petWindow.show()
+    petWindow.focus()
+    petWindow.webContents.focus()
+  } else {
+    petWindow.showInactive()
+  }
   petWindow.moveTop()
-  if (preferences.teleportOpensRecentChat) sendToPet('pet:open-chat')
+  if (composePaths.length) sendToPet('pet:compose-files', [...composePaths])
+  else if (openChat) sendToPet('pet:open-chat')
+}
+
+function teleportPetToCursor(): void {
+  summonPetToCursor(preferences.teleportOpensRecentChat)
+}
+
+function requestFinderComposePaths(paths: readonly string[]): void {
+  if (!paths.length) return
+  pendingFinderComposePaths = [...paths]
+  if (!petWindow || petWindow.isDestroyed() || petWindow.webContents.isLoadingMainFrame()) return
+  const pending = pendingFinderComposePaths
+  pendingFinderComposePaths = []
+  summonPetToCursor(true, pending)
+}
+
+function finderComposePathsFromAdditionalData(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((path): path is string => typeof path === 'string' && path.length > 0 && path.length <= 4096 && (path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path)))
+    .slice(0, 8)
 }
 
 function registerTeleportShortcut(): void {
@@ -516,8 +615,23 @@ function createPetWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   })
+  window.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    if (webContents !== window.webContents || permission !== 'media' || !requestingOrigin.startsWith('file://')) return false
+    const mediaTypes = 'mediaTypes' in details && Array.isArray(details.mediaTypes) ? details.mediaTypes : []
+    return mediaTypes.length === 0 || (mediaTypes.includes('audio') && !mediaTypes.includes('video'))
+  })
+  window.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const mediaTypes = permission === 'media' && 'mediaTypes' in details && Array.isArray(details.mediaTypes) ? details.mediaTypes : []
+    callback(webContents === window.webContents && permission === 'media' && mediaTypes.includes('audio') && !mediaTypes.includes('video'))
+  })
   applyWindowVisibility(window)
   window.loadFile(join(import.meta.dirname, 'index.html'))
+  window.webContents.on('did-finish-load', () => {
+    if (!pendingFinderComposePaths.length) return
+    const pending = pendingFinderComposePaths
+    pendingFinderComposePaths = []
+    summonPetToCursor(true, pending)
+  })
   window.on('show', () => applyWindowVisibility(window))
   window.once('ready-to-show', () => {
     window.showInactive()
@@ -541,6 +655,15 @@ function applyWindowVisibility(window: BrowserWindow): void {
   window.setAlwaysOnTop(true, policy.alwaysOnTopLevel)
 }
 
+function activatePetForInput(): void {
+  if (!petWindow || petWindow.isDestroyed()) return
+  if (process.platform === 'darwin') app.focus({ steal: true })
+  petWindow.show()
+  petWindow.focus()
+  petWindow.webContents.focus()
+  petWindow.moveTop()
+}
+
 function registerIpc(): void {
   ipcMain.handle('pet:get-bootstrap', async () => ({
     snapshot,
@@ -548,7 +671,8 @@ function registerIpc(): void {
     reducedMotion: preferences.reducedMotion,
     bubbleVisible: preferences.bubbleVisible,
     scale: preferences.scale,
-    activationGesture: preferences.activationGesture,
+    doubleClickAction: preferences.doubleClickAction,
+    longPressAction: preferences.longPressAction,
     serviceOwned: bridge?.ownsService ?? false,
     petStageOffset,
     windowDock: currentWindowDock ?? 'center',
@@ -558,16 +682,26 @@ function registerIpc(): void {
     preferences.bubbleVisible = Boolean(visible)
     await savePreferences()
   })
+  ipcMain.handle('pet:set-bubble-side', (_event, side: unknown) => {
+    if (side !== 'top' && side !== 'right' && side !== 'bottom' && side !== 'left') return
+    placePetForBubbleSide(side)
+  })
   ipcMain.handle('pet:record-interaction', () => recordInteraction())
-  ipcMain.handle('pet:chat', async (_event, text: unknown, sessionId?: unknown) => {
-    if (typeof text !== 'string' || !text.trim() || text.length > 8_000) return { ok: false, error: 'Message is empty or too long.' }
+  ipcMain.handle('pet:activate-for-input', () => activatePetForInput())
+  ipcMain.handle('pet:chat', async (_event, text: unknown, sessionId?: unknown, images?: unknown) => {
+    const candidate: Extract<BridgeClientMessage, { type: 'chat' }> = {
+      type: 'chat', requestId: 'ipc-validation', text: typeof text === 'string' ? text : '',
+      ...(typeof sessionId === 'string' ? { sessionId } : {}),
+      ...(Array.isArray(images) ? { images } : {}),
+    } as Extract<BridgeClientMessage, { type: 'chat' }>
+    if (!isBridgeClientMessage(candidate)) return { ok: false, error: 'Message or image attachments are invalid.' }
     if (isErrorDemo) {
       publishSnapshot({ state: 'idle', connected: true, facing: snapshot.facing, sequence: snapshot.sequence + 1, time: Date.now(), text: 'Failure demo acknowledged' })
       return { ok: true }
     }
     if (!bridge?.isConnected) return { ok: false, error: 'Harness is not connected.' }
     try {
-      await bridge.sendChat(text.trim(), typeof sessionId === 'string' ? sessionId : undefined)
+      await bridge.sendChat(candidate.text.trim(), candidate.sessionId, candidate.images)
       return { ok: true }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
@@ -622,6 +756,86 @@ function registerIpc(): void {
     bridge?.acknowledge(sessionId)
   })
   ipcMain.handle('pet:record-treasure-found', () => bridge?.recordTreasureFound())
+  ipcMain.handle('pet:transcribe-voice', async (_event, value: unknown, diagnostic: unknown) => {
+    if (!preferences.voiceInputEnabled) {
+      recordVoiceDiagnostic('rejected reason=disabled')
+      return { ok: false, error: 'Voice input is disabled.' }
+    }
+    if (voiceTranscriptionActive) {
+      recordVoiceDiagnostic('rejected reason=already-active')
+      return { ok: false, error: 'Speech recognition is already running.' }
+    }
+    const bytes = value instanceof Uint8Array
+      ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+      : value instanceof ArrayBuffer ? new Uint8Array(value) : undefined
+    if (!bytes || bytes.byteLength < 46 || bytes.byteLength > MAX_VOICE_WAV_BYTES) {
+      recordVoiceDiagnostic(`rejected reason=invalid-size bytes=${bytes?.byteLength ?? 0}`)
+      return { ok: false, error: 'Voice recording is empty or longer than 60 seconds.' }
+    }
+    voiceTranscriptionActive = true
+    const levels = analyzePcm16Wav(bytes)
+    const levelText = levels
+      ? ` duration=${levels.durationSeconds.toFixed(2)}s peak=${Number.isFinite(levels.peakDb) ? levels.peakDb.toFixed(1) : '-inf'}dB rms=${Number.isFinite(levels.rmsDb) ? levels.rmsDb.toFixed(1) : '-inf'}dB active=${(levels.activeFrameRatio * 100).toFixed(0)}% longest=${levels.longestActiveSeconds.toFixed(2)}s`
+      : ''
+    const track = diagnostic && typeof diagnostic === 'object' ? diagnostic as Record<string, unknown> : {}
+    const clean = (value: unknown, maximum = 80) => typeof value === 'string'
+      ? value.replace(/[\r\n]+/g, ' ').trim().slice(0, maximum)
+      : undefined
+    const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : undefined
+    const boolean = (value: unknown) => typeof value === 'boolean' ? value : undefined
+    const trackText = [
+      clean(track.label) ? `device=${JSON.stringify(clean(track.label))}` : undefined,
+      clean(track.readyState, 20) ? `state=${clean(track.readyState, 20)}` : undefined,
+      boolean(track.muted) !== undefined ? `muted=${boolean(track.muted)}` : undefined,
+      boolean(track.enabled) !== undefined ? `enabled=${boolean(track.enabled)}` : undefined,
+      number(track.sampleRate) !== undefined ? `rate=${number(track.sampleRate)}` : undefined,
+      number(track.channelCount) !== undefined ? `channels=${number(track.channelCount)}` : undefined,
+      boolean(track.autoGainControl) !== undefined ? `agc=${boolean(track.autoGainControl)}` : undefined,
+      boolean(track.echoCancellation) !== undefined ? `aec=${boolean(track.echoCancellation)}` : undefined,
+      boolean(track.noiseSuppression) !== undefined ? `ns=${boolean(track.noiseSuppression)}` : undefined,
+    ].filter(Boolean).join(' ')
+    recordVoiceDiagnostic(`started bytes=${bytes.byteLength}${levelText} language=${preferences.voiceLanguage} platform=${process.platform}${trackText ? ` ${trackText}` : ''}`)
+    try {
+      const text = await new SystemVoiceTranscriber(resourceRoot).transcribe(bytes, preferences.voiceLanguage)
+      recordVoiceDiagnostic(`finished outcome=${text ? 'recognized' : 'no-speech'} characters=${text.length}`)
+      return text ? { ok: true, text } : { ok: false, code: 'noSpeech' }
+    } catch (error) {
+      const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim().slice(0, 300)
+      recordVoiceDiagnostic(`finished outcome=error detail=${detail}`)
+      console.warn(`Voice transcription failed: ${detail}`)
+      if (isNoSpeechDetectedError(error)) return { ok: false, code: 'noSpeech', detail }
+      return { ok: false, code: 'unavailable', detail }
+    } finally {
+      voiceTranscriptionActive = false
+    }
+  })
+  ipcMain.handle('pet:voice-notice', async (_event, code: unknown, detail?: unknown) => {
+    const chinese = app.getLocale().toLowerCase().startsWith('zh')
+    const messages: Record<string, { message: string; detail: string }> = chinese ? {
+      microphone: { message: '无法使用麦克风', detail: '请在系统隐私设置中允许 XY DeepSeek Pet 使用麦克风，然后再试一次。' },
+      ready: { message: '语音输入已准备好', detail: '请再按住鲸鱼说话，松开后文字会进入回复框，不会自动发送。' },
+      unavailable: { message: '系统语音识别暂不可用', detail: '请检查系统语音识别权限与语言包设置，然后再试一次。' },
+      session: { message: '还没有可以回复的会话', detail: '请先在 Harness 中开始一个会话，再使用回复、语音或发送文件功能。' },
+    } : {
+      microphone: { message: 'Microphone unavailable', detail: 'Allow XY DeepSeek Pet to use the microphone in system privacy settings, then try again.' },
+      ready: { message: 'Voice input is ready', detail: 'Hold the pet again to dictate. The transcript opens in the reply box and is never sent automatically.' },
+      unavailable: { message: 'System speech recognition is unavailable', detail: 'Check speech-recognition permission and language-pack settings, then try again.' },
+      session: { message: 'No session to reply to', detail: 'Start a Harness session before replying, dictating, or sending files.' },
+    }
+    const notice = typeof code === 'string' ? messages[code] : undefined
+    if (!notice) return
+    const diagnostic = typeof detail === 'string' ? detail.replace(/\s+/g, ' ').trim().slice(0, 300) : ''
+    const options = {
+      type: 'info' as const,
+      title: 'XY DeepSeek Pet',
+      message: notice.message,
+      detail: diagnostic ? `${notice.detail}\n\n${chinese ? '诊断信息：' : 'Diagnostic: '}${diagnostic}` : notice.detail,
+      buttons: [chinese ? '好' : 'OK'],
+      noLink: true,
+    }
+    if (petWindow) await dialog.showMessageBox(petWindow, options)
+    else await dialog.showMessageBox(options)
+  })
   ipcMain.handle('pet:open-client', (_event, sessionId?: unknown) => {
     bridge?.openClient(typeof sessionId === 'string' ? sessionId : undefined)
   })
@@ -646,12 +860,6 @@ function registerIpc(): void {
   })
   ipcMain.handle('pet:set-scale', async (_event, value: unknown) => {
     if (typeof value === 'number' && Number.isFinite(value) && value >= MIN_SCALE && value <= MAX_SCALE) await setScale(normalizeScale(value))
-  })
-  ipcMain.handle('pet:set-gesture', async (_event, value: unknown) => {
-    if (value !== 'doubleClick' && value !== 'longPress') return
-    preferences.activationGesture = value
-    sendToPet('pet:preferences', rendererPreferences())
-    await savePreferences()
   })
   ipcMain.handle('pet:set-mouse-chase-enabled', async (_event, enabled: unknown) => {
     if (typeof enabled !== 'boolean') return
@@ -843,8 +1051,14 @@ function tickFling(): void {
   const next = stepFling(flingMotion, (now - flingLastStepAt) / 1_000, flingPetBox, flingWorkArea, preferences.flingResistance)
   flingLastStepAt = now
   const moved = placeVisiblePet({ x: next.x, y: next.y }, flingWorkArea)
-  const actualPosition = moved ? currentPetPosition() : { x: next.x, y: next.y }
-  flingMotion = { ...next, ...actualPosition }
+  // Keep sub-pixel simulation coordinates independent from Electron's integer
+  // window coordinates. Feeding rounded positions back into the simulation can
+  // turn repeated edge contacts into apparent sliding along the boundary.
+  flingMotion = next
+  if (!moved) {
+    finishFling()
+    return
+  }
   if (flingAnimated && snapshot.state === 'walk') {
     const facing = facingForFling(next.velocityX, snapshot.facing)
     if (facing !== snapshot.facing) publishSnapshot({ ...snapshot, facing, sequence: snapshot.sequence + 1, time: now })
@@ -918,10 +1132,14 @@ class DesktopBridge {
     this.pending.clear()
   }
 
-  sendChat(text: string, sessionId?: string): Promise<void> {
+  sendChat(text: string, sessionId?: string, images: PetChatImage[] = []): Promise<void> {
     if (!this.isConnected || !this.socket) return Promise.reject(new Error('Harness is not connected'))
     const requestId = randomUUID()
-    const message: BridgeClientMessage = { type: 'chat', requestId, text, ...(sessionId ? { sessionId } : {}) }
+    const message: BridgeClientMessage = {
+      type: 'chat', requestId, text,
+      ...(sessionId ? { sessionId } : {}),
+      ...(images.length ? { images } : {}),
+    }
     this.socket.send(JSON.stringify(message))
     return new Promise((resolvePromise, reject) => {
       const timeout = setTimeout(() => {
@@ -1142,20 +1360,28 @@ async function attachBridgeFromArgs(args: readonly string[], allowStdin = false)
   sendToPet('pet:service-owned', bridge.ownsService)
 }
 
-if (!app.requestSingleInstanceLock()) {
+const startupFinderComposePaths = finderComposePathsFromArgs(process.argv)
+if (!app.requestSingleInstanceLock({ finderComposePaths: startupFinderComposePaths })) {
   app.quit()
 } else {
-  app.on('second-instance', (_event, commandLine) => {
+  app.on('second-instance', (_event, commandLine, _workingDirectory, additionalData) => {
     void attachBridgeFromArgs(commandLine)
-    petWindow?.showInactive()
-    petWindow?.moveTop()
+    const paths = finderComposePathsFromAdditionalData(
+      additionalData && typeof additionalData === 'object' ? (additionalData as Record<string, unknown>).finderComposePaths : undefined,
+    )
+    if (paths.length) requestFinderComposePaths(paths)
+    else {
+      petWindow?.showInactive()
+      petWindow?.moveTop()
+    }
   })
   app.whenReady().then(async () => {
     preferencesPath = join(homedir(), '.xy-deepseek-pet', 'pet-settings.json')
     await mkdir(dirname(preferencesPath), { recursive: true, mode: 0o700 })
     preferences = await readPreferences()
     menuExtensions = await readMenuExtensions()
-    themeManager = new ThemeManager({ userData: app.getPath('userData'), repositoryRoot: findRepositoryRoot() })
+    resourceRoot = findRepositoryRoot()
+    themeManager = new ThemeManager({ userData: app.getPath('userData'), repositoryRoot: resourceRoot })
     await themeManager.initialize()
     activeTheme = await themeManager.load(preferences.themeId)
     preferences.themeId = activeTheme.manifest.id
@@ -1195,6 +1421,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     registerIpc()
     petWindow = createPetWindow()
+    requestFinderComposePaths(startupFinderComposePaths)
     registerTeleportShortcut()
     startWandering()
     startMouseChase()

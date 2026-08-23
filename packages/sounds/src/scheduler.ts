@@ -24,6 +24,7 @@ export class SoundScheduler {
   private drainPromise: Promise<void> | undefined
   private waitTimer: NodeJS.Timeout | undefined
   private waitResolver: (() => void) | undefined
+  private active: QueuedSound | undefined
   private stopped = false
 
   constructor(
@@ -48,6 +49,9 @@ export class SoundScheduler {
       this.queue = this.queue.filter(
         (queued) => queued.request.sessionId !== request.sessionId || queued.request.turn !== request.turn,
       )
+      if (this.active?.request.channel !== undefined && this.active.request.channel !== 'turnComplete') {
+        this.player.stop()
+      }
     }
 
     this.queue.push({
@@ -93,7 +97,9 @@ export class SoundScheduler {
         if (this.stopped) return
         this.lastToolStartedAt = this.now()
       }
+      this.active = next
       await this.player.play(next.asset, next.volume).catch(() => undefined)
+      if (this.active === next) this.active = undefined
     }
   }
 

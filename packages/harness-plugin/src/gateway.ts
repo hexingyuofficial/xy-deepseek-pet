@@ -8,6 +8,7 @@ export interface PetRuntimeControls {
   closeDesktop(): boolean
   importTheme(fileName: string, dataBase64: string): Promise<string>
   createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): Promise<{ displayName: string; platform: 'macOS' | 'Windows' }>
+  createFinderQuickAction(): { displayName: string; platform: 'macOS' | 'Windows' }
 }
 
 export class PetSettingsGateway extends TypertRemoteService {
@@ -27,4 +28,5 @@ export class PetSettingsGateway extends TypertRemoteService {
   @Remote createLauncher(name: string, iconId: 'calm' | 'custom', fileName: string, dataBase64: string): Promise<{ displayName: string; platform: 'macOS' | 'Windows' }> {
     return this.runtime.createLauncher(name, iconId, fileName, dataBase64)
   }
+  @Remote createFinderQuickAction(): { displayName: string; platform: 'macOS' | 'Windows' } { return this.runtime.createFinderQuickAction() }
 }

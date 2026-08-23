@@ -14524,6 +14524,7 @@ var action = external_exports.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/).ma
 var movementLevel = external_exports.number().int().min(0).max(100);
 var settings = external_exports.object({
   themeId: external_exports.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(64),
+  accentColor: external_exports.string().regex(/^#[0-9a-f]{6}$/i),
   reducedMotion: external_exports.boolean(),
   bubbleVisible: external_exports.boolean(),
   walkingEnabled: external_exports.boolean(),
@@ -14538,7 +14539,11 @@ var settings = external_exports.object({
   teleportShortcut: external_exports.string().regex(/^(?:(?:CommandOrControl|Command|Control|Ctrl|Alt|Option|Shift|Super|Meta)\+)+[A-Z0-9]$/),
   teleportOpensRecentChat: external_exports.boolean(),
   scale,
-  activationGesture: external_exports.enum(["doubleClick", "longPress"]),
+  doubleClickAction: external_exports.enum(["none", "voice", "openRecentChat", "openHarness"]),
+  longPressAction: external_exports.enum(["none", "voice", "openRecentChat", "openHarness"]),
+  voiceInputEnabled: external_exports.boolean(),
+  voiceProvider: external_exports.literal("system"),
+  voiceLanguage: external_exports.enum(["system", "zh-CN", "en-US"]),
   locale: external_exports.enum(["system", "zh-CN", "en"]),
   autoLaunch: external_exports.boolean(),
   menuActions: external_exports.array(action).max(6),
@@ -14548,6 +14553,7 @@ var theme = external_exports.object({ id: external_exports.string(), name: exter
 var stats = external_exports.object({ treasuresFound: external_exports.number().int().min(0) });
 var menuExtension = external_exports.object({ id: action, label: external_exports.object({ "zh-CN": external_exports.string(), en: external_exports.string() }), invoke: external_exports.enum(["open-client", "chat", "tap", "settings"]), order: external_exports.number().optional() });
 var launcherResult = external_exports.object({ displayName: external_exports.string().min(1).max(48), platform: external_exports.enum(["macOS", "Windows"]) });
+var finderQuickActionResult = external_exports.object({ displayName: external_exports.string().min(1).max(48), platform: external_exports.enum(["macOS", "Windows"]) });
 var snapshot = external_exports.object({ config: settings, stats, themes: external_exports.array(theme), menuExtensions: external_exports.array(menuExtension) });
 var strict = (typeSymbol, schema) => ({ mode: "strict", typeSymbol, schema });
 var PET_REMOTE_DESCRIPTORS = [
@@ -14565,7 +14571,8 @@ var PET_REMOTE_DESCRIPTORS = [
     { name: "iconId", wire: "iconId", source: "json", codec: strict("xy-deepseek-pet#launcher:iconId", external_exports.enum(["calm", "custom"])) },
     { name: "fileName", wire: "fileName", source: "json", codec: strict("xy-deepseek-pet#launcher:fileName", external_exports.string().max(255)) },
     { name: "dataBase64", wire: "dataBase64", source: "json", codec: strict("xy-deepseek-pet#launcher:data", external_exports.string().max(7e6)) }
-  ], result: strict("xy-deepseek-pet#launcher:result", launcherResult) }
+  ], result: strict("xy-deepseek-pet#launcher:result", launcherResult) },
+  { id: "xy-deepseek-pet#xyPet/createFinderQuickAction", service: "xyPet", namespace: "xyPet", method: "createFinderQuickAction", invocation: { kind: "direct" }, parameters: [], result: strict("xy-deepseek-pet#finder-quick-action:result", finderQuickActionResult) }
 ];
 
 // src/typert.ts

@@ -32,6 +32,42 @@ const MAX_FLING_SPEED = 4_000
 const STOP_SPEED = 28
 const EDGE_RESTITUTION = 0.82
 
+function reflectAxis(
+  position: number,
+  velocity: number,
+  minimum: number,
+  maximum: number,
+): { position: number; velocity: number } {
+  if (maximum <= minimum) return { position: minimum, velocity: 0 }
+
+  let nextPosition = position
+  let nextVelocity = velocity
+  // A large frame can cross an edge more than once. Folding the overshoot back
+  // into the range keeps collision behavior independent of timer cadence.
+  while (nextPosition < minimum || nextPosition > maximum) {
+    if (nextPosition < minimum) {
+      nextPosition = minimum + (minimum - nextPosition)
+      nextVelocity = Math.abs(nextVelocity) * EDGE_RESTITUTION
+    } else {
+      nextPosition = maximum - (nextPosition - maximum)
+      nextVelocity = -Math.abs(nextVelocity) * EDGE_RESTITUTION
+    }
+  }
+
+  // Electron may report a rounded position exactly on an edge. If its velocity
+  // still points outwards, treat that contact as a collision instead of letting
+  // the normal component disappear into repeated clamping.
+  if (nextPosition <= minimum && nextVelocity < 0) {
+    nextPosition = minimum
+    nextVelocity = Math.abs(nextVelocity) * EDGE_RESTITUTION
+  } else if (nextPosition >= maximum && nextVelocity > 0) {
+    nextPosition = maximum
+    nextVelocity = -Math.abs(nextVelocity) * EDGE_RESTITUTION
+  }
+
+  return { position: nextPosition, velocity: nextVelocity }
+}
+
 export function flingDeceleration(resistance: number): number {
   const level = Math.min(100, Math.max(0, resistance)) / 100
   return 260 + level * 1_940
@@ -128,14 +164,12 @@ export function stepFling(
   const minimumY = workArea.y - pet.offsetY
   const maximumX = workArea.x + workArea.width - pet.offsetX - pet.width
   const maximumY = workArea.y + workArea.height - pet.offsetY - pet.height
-  if (x < minimumX || x > maximumX) {
-    x = Math.min(maximumX, Math.max(minimumX, x))
-    velocityX = -velocityX * EDGE_RESTITUTION
-  }
-  if (y < minimumY || y > maximumY) {
-    y = Math.min(maximumY, Math.max(minimumY, y))
-    velocityY = -velocityY * EDGE_RESTITUTION
-  }
+  const horizontal = reflectAxis(x, velocityX, minimumX, maximumX)
+  const vertical = reflectAxis(y, velocityY, minimumY, maximumY)
+  x = horizontal.position
+  y = vertical.position
+  velocityX = horizontal.velocity
+  velocityY = vertical.velocity
 
   const stopped = Math.hypot(velocityX, velocityY) < STOP_SPEED
   return {

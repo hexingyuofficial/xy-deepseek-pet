@@ -27,7 +27,8 @@ function isInside(root: string, candidate: string): boolean {
 }
 
 function safeDisplayName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9 _.-]+/g, '').trim().slice(0, 80) || 'Imported sound'
+  const cleaned = value.normalize('NFC').replace(/[\p{Cc}\p{Cf}\\/]+/gu, '').trim()
+  return [...cleaned].slice(0, 80).join('') || 'Imported sound'
 }
 
 function hasSignature(buffer: Buffer, extension: string): boolean {

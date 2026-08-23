@@ -1,11 +1,33 @@
+import { execFile } from 'node:child_process'
 import { copyFile, cp, mkdir, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { promisify } from 'node:util'
 import { build } from 'esbuild'
 
 const root = resolve(import.meta.dirname, '..')
 const dist = resolve(root, 'dist')
 await rm(dist, { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
+const voiceResources = resolve(dist, 'resources/voice')
+await mkdir(voiceResources, { recursive: true })
+
+if (process.platform === 'darwin') {
+  const helperContents = resolve(voiceResources, 'XY DeepSeek Pet Speech.app/Contents')
+  const helperExecutable = resolve(helperContents, 'MacOS/xy-speech-macos')
+  await mkdir(resolve(helperContents, 'MacOS'), { recursive: true })
+  await promisify(execFile)('xcrun', [
+    'clang', '-fobjc-arc', '-arch', 'arm64', '-arch', 'x86_64', '-mmacosx-version-min=12.0',
+    resolve(root, 'native/macos/xy-speech.m'), '-framework', 'Foundation', '-framework', 'Speech',
+    '-o', helperExecutable,
+  ])
+  await copyFile(resolve(root, 'native/macos/Info.plist'), resolve(helperContents, 'Info.plist'))
+  await promisify(execFile)('codesign', ['--force', '--sign', '-', '--identifier', 'dev.xydeepseekpet.speech', resolve(voiceResources, 'XY DeepSeek Pet Speech.app')])
+}
+await copyFile(resolve(root, 'native/windows/xy-speech-windows.ps1'), resolve(voiceResources, 'xy-speech-windows.ps1'))
+await Promise.all([
+  copyFile(resolve(root, 'assets/voice/recording-start.wav'), resolve(voiceResources, 'recording-start.wav')),
+  copyFile(resolve(root, 'assets/voice/recording-stop.wav'), resolve(voiceResources, 'recording-stop.wav')),
+])
 
 await Promise.all([
   build({

@@ -14,6 +14,7 @@ function fixture() {
       wanderFrequency: 70, wanderDistance: 35, mouseChaseEnabled: false, mouseChaseSpeed: 40,
       flingEnabled: true, flingResistance: 45,
       showOnFullScreen: true,
+      voiceInputEnabled: true, voiceProvider: 'system', voiceLanguage: 'system', doubleClickAction: 'openHarness', longPressAction: 'voice',
     },
     themes: [{ id: 'whale-default', name: 'Whale' }],
     menuExtensions: [],
@@ -37,10 +38,51 @@ describe('Harness agent pet capability', () => {
     expect(section?.name).toBe('tool:xy-deepseek-pet')
     expect(section?.text).toContain('xy_pet')
     expect(section?.text).toContain('download a licensed theme ZIP')
+    expect(section?.text).toContain('system voice dictation')
     expect(definition?.name).toBe('xy_pet')
     const value = await definition.execute({ operation: 'status' }, { signal: new AbortController().signal })
     expect(value.installedThemes).toEqual([{ id: 'whale-default', name: 'Whale' }])
     expect(JSON.stringify(value)).not.toMatch(/token|bridge\.json|session/i)
+  })
+
+  it('configures system voice input without accepting executable providers', async () => {
+    const { definitions, settings } = fixture()
+    await definitions[0].execute({ operation: 'set_voice', voice_enabled: true, voice_language: 'zh-CN' }, { signal: new AbortController().signal })
+    expect(settings.update).toHaveBeenCalledWith(expect.objectContaining({
+      voiceInputEnabled: true,
+      voiceProvider: 'system',
+      voiceLanguage: 'zh-CN',
+      doubleClickAction: 'openHarness',
+      longPressAction: 'voice',
+    }))
+  })
+
+  it('allows both pet gestures to be disabled through the model-facing tool', async () => {
+    const { definitions, settings } = fixture()
+    await definitions[0].execute({
+      operation: 'set_voice',
+      double_click_action: 'none',
+      long_press_action: 'none',
+    }, { signal: new AbortController().signal })
+    expect(settings.update).toHaveBeenCalledWith(expect.objectContaining({
+      doubleClickAction: 'none',
+      longPressAction: 'none',
+      voiceInputEnabled: false,
+    }))
+  })
+
+  it('allows both gestures to open the latest session details', async () => {
+    const { definitions, settings } = fixture()
+    await definitions[0].execute({
+      operation: 'set_voice',
+      double_click_action: 'openRecentChat',
+      long_press_action: 'openRecentChat',
+    }, { signal: new AbortController().signal })
+    expect(settings.update).toHaveBeenCalledWith(expect.objectContaining({
+      doubleClickAction: 'openRecentChat',
+      longPressAction: 'openRecentChat',
+      voiceInputEnabled: false,
+    }))
   })
 
   it('routes an installed theme selection through the settings controller', async () => {

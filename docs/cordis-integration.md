@@ -69,7 +69,7 @@ dsh --profile web --dump-config
 
 ## Configuration surfaces
 
-After installation and restart, the pet contributes a real open/close action through `sidebar.footer.action` and one compact item through `settings.general.item`. The Typert Remote namespace `xyPet` validates and persists settings, imports bounded ZIPs, creates the optional desktop shortcut, and starts or stops the companion. The transparent desktop window has no duplicate settings dialog.
+After installation and restart, the pet contributes a real open/close action through `sidebar.footer.action` and its settings page through `settings.plugins.tab`. The Typert Remote namespace `xyPet` validates and persists settings, imports bounded ZIPs, creates the optional desktop shortcut, and starts or stops the companion. The transparent desktop window has no duplicate settings dialog.
 
 `xy-deepseek-sounds` contributes a final collapsed sound section. When the pet is installed it renders inside the pet group; a sound-only installation receives one standalone General-settings item. The native right-click menu stays limited to frequent commands.
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>dev.xydeepseekpet.speech</string>
+  <key>CFBundleExecutable</key>
+  <string>xy-speech-macos</string>
+  <key>CFBundleName</key>
+  <string>XY DeepSeek Pet Speech</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>XY DeepSeek Pet uses system speech recognition only when you hold the pet to dictate a reply.</string>
+</dict>
+</plist>

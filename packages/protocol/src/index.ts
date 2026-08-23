@@ -13,6 +13,37 @@ export const PET_STATES = [
 export type PetState = (typeof PET_STATES)[number]
 
 export const PET_SETTINGS_QUERY = 'xyPet'
+export const DEFAULT_PET_ACCENT_COLOR = '#2c86f0'
+
+export function stripThinkBlocks(value: string): string {
+  let visible = ''
+  let depth = 0
+  let index = 0
+
+  while (index < value.length) {
+    if (value[index] === '<') {
+      const remaining = value.slice(index)
+      const tag = remaining.match(/^<\s*(\/?)\s*think(?:\s[^>]*)?>/i)
+      if (tag) {
+        depth = tag[1] ? Math.max(0, depth - 1) : depth + 1
+        index += tag[0].length
+        continue
+      }
+
+      const lower = remaining.toLowerCase()
+      const incompleteTag = '<think>'.startsWith(lower)
+        || '</think>'.startsWith(lower)
+        || /^<think(?:\s[^>]*)?$/i.test(remaining)
+        || /^<\/think\s*$/i.test(remaining)
+      if (incompleteTag) break
+    }
+
+    if (depth === 0) visible += value[index]
+    index += 1
+  }
+
+  return visible
+}
 
 export function petSettingsUrl(clientUrl: string): string {
   const url = new URL(clientUrl)
@@ -100,6 +131,19 @@ export interface PetSnapshot {
   time: number
 }
 
+export const PET_CHAT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
+export type PetChatImageType = (typeof PET_CHAT_IMAGE_TYPES)[number]
+
+export interface PetChatImage {
+  name: string
+  mediaType: PetChatImageType
+  data: string
+}
+
+export const MAX_CHAT_IMAGES = 4
+export const MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_CHAT_IMAGE_BASE64_LENGTH = Math.ceil(MAX_CHAT_IMAGE_BYTES / 3) * 4
+
 export type BridgeServerMessage =
   | { type: 'snapshot'; snapshot: PetSnapshot }
   | { type: 'chat-result'; requestId: string; ok: true }
@@ -113,7 +157,7 @@ export type BridgeServerMessage =
 
 export type BridgeClientMessage =
   | { type: 'auth'; token: string }
-  | { type: 'chat'; requestId: string; text: string; sessionId?: string }
+  | { type: 'chat'; requestId: string; text: string; sessionId?: string; images?: PetChatImage[] }
   | { type: 'approval-decision'; requestId: string; sessionId: string; outcome: 'allowed-once' | 'rejected' }
   | { type: 'question-answer'; requestId: string; sessionId: string; answers: PetQuestionAnswer[] }
   | { type: 'focus' }
@@ -239,15 +283,21 @@ export function isBridgeClientMessage(value: unknown): value is BridgeClientMess
     return message.sessionId === undefined || (typeof message.sessionId === 'string' && message.sessionId.length <= 256)
   }
   if (message.type === 'treasure-found') return true
-  return (
-    message.type === 'chat' &&
-    typeof message.requestId === 'string' &&
-    message.requestId.length <= 128 &&
-    typeof message.text === 'string' &&
-    message.text.trim().length > 0 &&
-    message.text.length <= 8_000 &&
-    (message.sessionId === undefined || (typeof message.sessionId === 'string' && message.sessionId.length <= 256))
-  )
+  if (message.type !== 'chat' || typeof message.requestId !== 'string' || message.requestId.length > 128 ||
+    typeof message.text !== 'string' || message.text.length > 8_000 ||
+    (message.sessionId !== undefined && (typeof message.sessionId !== 'string' || message.sessionId.length > 256))) return false
+  const images = message.images
+  if (images !== undefined && (!Array.isArray(images) || images.length > MAX_CHAT_IMAGES || !images.every(validChatImage))) return false
+  if (images && images.reduce((total, image) => total + image.data.length, 0) > MAX_CHAT_IMAGE_BASE64_LENGTH) return false
+  return message.text.trim().length > 0 || Boolean(images?.length)
+}
+
+function validChatImage(value: unknown): value is PetChatImage {
+  if (!value || typeof value !== 'object') return false
+  const image = value as Record<string, unknown>
+  return typeof image.name === 'string' && image.name.length > 0 && image.name.length <= 255 &&
+    PET_CHAT_IMAGE_TYPES.includes(image.mediaType as PetChatImageType) &&
+    typeof image.data === 'string' && image.data.length > 0 && image.data.length <= MAX_CHAT_IMAGE_BASE64_LENGTH
 }
 
 export function isBridgeServerMessage(value: unknown): value is BridgeServerMessage {
