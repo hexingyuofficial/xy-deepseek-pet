@@ -33,10 +33,6 @@
   <a href="#二开指南">二开指南</a>
 </p>
 
-<p align="center">
-  <img src="docs/readme/gallery.png" alt="小鲸鱼待机、睡觉、游走、下潜、按扁和失败动作预览" width="720">
-</p>
-
 ---
 
 ## 为什么做它
@@ -101,9 +97,46 @@ XY Pet 是桌面上那只小鲸鱼：
 - **清脆鲸叫与丰富战利品随机池**：任务完成时播放一声清脆标志性的鲸鱼叫声；从水下浮出时在香脆薯条、圣光之剑、终结者墨镜、海盗眼罩、海草树枝、靴子等十几种道具中均分随机抽选。
 - **固定 0.1% 罕见宝箱惊喜**：底层运行时硬编码锁定固定 `0.1%` 的罕见宝箱真随机掉落机制（约千分之一概率），主题包无法篡改，保证抽奖的真随机与惊喜感。
 
-<p align="center">
-  <img src="docs/readme/loot-showcase.png" width="820" alt="每次完成任务浮出水面时随机衔带的战利品图鉴（包含 0.1% 罕见宝箱）">
-</p>
+### 每次任务完成浮出水面衔带的战利品图鉴
+
+<table align="center">
+  <tr>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-treasure.png" width="130" alt="0.1% 罕见宝箱"><br>
+      <b>🎁 0.1% 罕见宝箱</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-fries.png" width="130" alt="香脆热薯条"><br>
+      <b>🍟 香脆热薯条</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-saint.png" width="130" alt="圣光之剑"><br>
+      <b>⚔️ 圣光之剑</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-terminator.png" width="130" alt="终结者墨镜"><br>
+      <b>🕶️ 终结者墨镜</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-blindfold.png" width="130" alt="海盗眼罩"><br>
+      <b>🙈 海盗眼罩</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-branches.png" width="130" alt="海草树枝"><br>
+      <b>🌿 海草树枝</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-boot.png" width="130" alt="钓上的靴子"><br>
+      <b>👢 钓上的靴子</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-thunder.png" width="130" alt="雷电跃起"><br>
+      <b>⚡ 雷电跃起</b>
+    </td>
+  </tr>
+</table>
 
 - **鼠标追逐与惯性甩飞**：开启后小鲸鱼会跟着指针游动；鼠标拖拽并快速松手会带着惯性滑出，在当前屏幕边缘弹性碰撞反弹并自然停下。
 - **打瞌睡与形变触感**：闲置 10 分钟无人理会它会自动打瞌睡；按住录音时会被按扁。大小可在 20% 到 200% 自由缩放。
