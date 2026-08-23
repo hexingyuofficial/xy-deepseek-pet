@@ -33,10 +33,6 @@
   <a href="#hacker-and-developer-guide">Hacker Guide</a>
 </p>
 
-<p align="center">
-  <img src="docs/readme/gallery.png" alt="Preview of idle, sleep, walk, dive, squash, and failure poses" width="720">
-</p>
-
 ---
 
 ## Why We Built This
@@ -101,9 +97,46 @@ Not a lifeless widget, but a responsive desktop companion that synchronizes with
 - **Whale Call & Random Souvenir Loot Pool**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs (fries, holy sword, terminator shades, eyepatch, branch, boot).
 - **Immutable 0.1% Rare Chest Drop**: An immutable `0.1%` rare treasure chest jackpot is hardcoded into the runtime, ensuring true randomness that cannot be tampered with by custom theme packs.
 
-<p align="center">
-  <img src="docs/readme/loot-showcase.png" width="820" alt="Loot gallery: random items retrieved upon surfacing, including the 0.1% rare chest">
-</p>
+### Loot Gallery: Souvenirs Retrieved Upon Surfacing
+
+<table align="center">
+  <tr>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-treasure.png" width="130" alt="0.1% Rare Chest"><br>
+      <b>🎁 0.1% Rare Chest</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-fries.png" width="130" alt="Crispy Fries"><br>
+      <b>🍟 Crispy Fries</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-saint.png" width="130" alt="Holy Sword"><br>
+      <b>⚔️ Holy Sword</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-terminator.png" width="130" alt="Terminator Shades"><br>
+      <b>🕶️ Terminator Shades</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-blindfold.png" width="130" alt="Pirate Eyepatch"><br>
+      <b>🙈 Pirate Eyepatch</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-branches.png" width="130" alt="Seaweed Branch"><br>
+      <b>🌿 Seaweed Branch</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-boot.png" width="130" alt="Old Fishing Boot"><br>
+      <b>👢 Fishing Boot</b>
+    </td>
+    <td align="center" width="25%">
+      <img src="docs/readme/loot-thunder.png" width="130" alt="Thunder Leap"><br>
+      <b>⚡ Thunder Leap</b>
+    </td>
+  </tr>
+</table>
 
 - **Pointer Chasing & Throw Physics**: Enable pointer chasing to have the whale swim toward your cursor; fling it across the screen and watch it bounce off display boundaries with smooth inertia.
 - **Sleep & Squash Tactility**: Idles into sleep mode after 10 minutes of inactivity; squashes down on press. Freely scalable from 20% to 200%.
