@@ -51,7 +51,7 @@ XY Pet lives right beside you:
 | :--- | :--- |
 | **Useful (Effortless)** | Single-screen freedom, global summon, 0.5s native voice dictation, inline 1-click approvals |
 | **Playful (Alive)** | Real underwater dive to prevent frozen UI, squash feedback, throw & bounce, signature whale call, 0.1% rare chest |
-| **Extensible (Hackable)** | Swap skins (Petdex compatible), swap speech models (`VoiceTranscriber`), swap sound packs, or ask your Agent to configure it |
+| **Extensible (Hackable)** | Custom accent colors, rebindable gesture actions, swap skins (Petdex compatible), swap speech models (`VoiceTranscriber`), swap sound packs, or ask your Agent to configure it |
 
 > 🔒 **Local-First Security Guarantees**: Everything runs 100% on your local machine with zero external cloud relays. Inter-process communication binds exclusively to `127.0.0.1` loopback with ephemeral credentials; audio transcription happens strictly on-device and is deleted immediately; hidden reasoning (`reasoning-delta`) and private tokens never reach the desktop; theme packs are data-only sandboxes (images + JSON) that never execute arbitrary scripts.
 
@@ -94,47 +94,23 @@ Not a lifeless widget, but a responsive desktop companion that synchronizes with
 </p>
 
 - **Real Dive to Signal Work (No Frozen Screens)**: When an Agent task starts, the whale dives into the water; during tool execution, it stays underwater working so you always know it's actively processing.
-- **Whale Call & Random Souvenir Loot Pool**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs (fries, holy sword, terminator shades, eyepatch, branch, boot).
+- **Whale Call & Random Souvenir Loot Pool**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs.
 - **Immutable 0.1% Rare Chest Drop**: An immutable `0.1%` rare treasure chest jackpot is hardcoded into the runtime, ensuring true randomness that cannot be tampered with by custom theme packs.
 
-### Loot Gallery: Souvenirs Retrieved Upon Surfacing
+### Random Loot Retrieved Upon Surfacing
 
 <table align="center">
   <tr>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-treasure.png" width="130" alt="0.1% Rare Chest"><br>
-      <b>🎁 0.1% Rare Chest</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-fries.png" width="130" alt="Crispy Fries"><br>
-      <b>🍟 Crispy Fries</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-saint.png" width="130" alt="Holy Sword"><br>
-      <b>⚔️ Holy Sword</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-terminator.png" width="130" alt="Terminator Shades"><br>
-      <b>🕶️ Terminator Shades</b>
-    </td>
+    <td align="center" width="25%"><img src="docs/readme/loot-treasure.png" width="120" alt="Rare Chest"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-fries.png" width="120" alt="Fries"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-saint.png" width="120" alt="Holy Sword"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-terminator.png" width="120" alt="Shades"></td>
   </tr>
   <tr>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-blindfold.png" width="130" alt="Pirate Eyepatch"><br>
-      <b>🙈 Pirate Eyepatch</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-branches.png" width="130" alt="Seaweed Branch"><br>
-      <b>🌿 Seaweed Branch</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-boot.png" width="130" alt="Old Fishing Boot"><br>
-      <b>👢 Fishing Boot</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-thunder.png" width="130" alt="Thunder Leap"><br>
-      <b>⚡ Thunder Leap</b>
-    </td>
+    <td align="center" width="25%"><img src="docs/readme/loot-blindfold.png" width="120" alt="Eyepatch"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-branches.png" width="120" alt="Branches"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-boot.png" width="120" alt="Boot"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-thunder.png" width="120" alt="Thunder"></td>
   </tr>
 </table>
 
@@ -147,6 +123,8 @@ Not a lifeless widget, but a responsive desktop companion that synchronizes with
 
 Whether you write code or just love customizing your setup, all components are cleanly decoupled into data contracts.
 
+- **Custom Accent Colors**: Choose your pet's accent color in the settings panel to match your desktop wallpaper and personal style.
+- **Fully Customizable Gesture Bindings**: Long-press (default: 0.5s voice dictation) and double-click (default: open Web GUI) can be independently rebound to Voice Dictation, Open Latest Chat, Open Harness, or No Action.
 - **Petdex Ecosystem Compatibility**: Import thousands of existing community pet packs from [Petdex](https://petdex.dev/) v1 / v2 by dragging in a ZIP file.
 - **Native 6-State Theme Authoring**: Create custom pixel sprites and animations adhering to [`schemas/theme.schema.json`](./schemas/theme.schema.json) and the [Theme Authoring Guide](./docs/theme-authoring.md).
 - **Pluggable Speech Engine (`VoiceTranscriber`)**: Beyond OS-native speech, implement the standard interface to connect local Whisper (e.g. whisper.cpp / faster-whisper) or custom ASR APIs.
@@ -196,7 +174,7 @@ dsh plugin --profile web add xy-deepseek-sounds
 - **Voice Dictation**: Long-press `0.5` seconds (squashes on press), speak, release to review text, and press Enter to send;
 - **Inline Approvals**: Click floating bubbles to type replies or click "Allow once / Reject";
 - **Context Menu**: Right-click for quick access to Harness, reply, settings, reconnect, or close;
-- **Settings**: Visit **Settings > Plugins > Desktop pet** to customize themes, scale, pointer chasing, fling resistance, gesture bindings, and sound channels.
+- **Settings**: Visit **Settings > Plugins > Desktop pet** to customize themes, accent colors, scale, pointer chasing, fling resistance, gesture bindings, and sound channels.
 
 ---
 
