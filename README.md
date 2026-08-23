@@ -51,7 +51,7 @@ XY Pet 是桌面上那只小鲸鱼：
 | :--- | :--- |
 | **好用（方便）** | 单屏免切大窗，快捷键随叫随到，长按 0.5s 原生语音输入，气泡内单步审批 |
 | **好玩（有趣）** | 真实下潜作业防假死，按扁形变，甩飞碰撞，完成一声鲸叫，随机战利品与 0.1% 罕见宝箱 |
-| **开放（折腾）** | 换皮肤（兼容 Petdex）、换语音模型（`VoiceTranscriber`）、换提示音，Agent 还能一句话帮你改 |
+| **开放（折腾）** | 自定义主题色、自由映射手势作用、换皮肤（兼容 Petdex）、换语音模型（`VoiceTranscriber`）、换提示音，Agent 还能一句话帮你改 |
 
 > 🔒 **纯本地安全底线**：全部运行在用户本机，无外部云端中转；进程间仅绑定 `127.0.0.1` 环回临时凭据；本地语音识别录完即删；隐藏思维链（`reasoning-delta`）与私密 Token 不出桌面；主题包仅解析静态图片与 JSON，不执行任何外部脚本。
 
@@ -94,47 +94,23 @@ XY Pet 是桌面上那只小鲸鱼：
 </p>
 
 - **任务状态真实下潜（拒绝假死）**：任务一开始小鲸鱼就一头扎进水里潜行思考；工具在跑时持续在水下作业，长耗时任务状态一目了然。
-- **清脆鲸叫与丰富战利品随机池**：任务完成时播放一声清脆标志性的鲸鱼叫声；从水下浮出时在香脆薯条、圣光之剑、终结者墨镜、海盗眼罩、海草树枝、靴子等十几种道具中均分随机抽选。
+- **清脆鲸叫与丰富战利品随机池**：任务完成时播放一声清脆标志性的鲸鱼叫声；从水下浮出时在十几种道具与战利品中均分随机抽选。
 - **固定 0.1% 罕见宝箱惊喜**：底层运行时硬编码锁定固定 `0.1%` 的罕见宝箱真随机掉落机制（约千分之一概率），主题包无法篡改，保证抽奖的真随机与惊喜感。
 
-### 每次任务完成浮出水面衔带的战利品图鉴
+### 每次任务完成浮出水面衔带的随机战利品
 
 <table align="center">
   <tr>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-treasure.png" width="130" alt="0.1% 罕见宝箱"><br>
-      <b>🎁 0.1% 罕见宝箱</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-fries.png" width="130" alt="香脆热薯条"><br>
-      <b>🍟 香脆热薯条</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-saint.png" width="130" alt="圣光之剑"><br>
-      <b>⚔️ 圣光之剑</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-terminator.png" width="130" alt="终结者墨镜"><br>
-      <b>🕶️ 终结者墨镜</b>
-    </td>
+    <td align="center" width="25%"><img src="docs/readme/loot-treasure.png" width="120" alt="罕见宝箱"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-fries.png" width="120" alt="薯条"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-saint.png" width="120" alt="圣剑"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-terminator.png" width="120" alt="墨镜"></td>
   </tr>
   <tr>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-blindfold.png" width="130" alt="海盗眼罩"><br>
-      <b>🙈 海盗眼罩</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-branches.png" width="130" alt="海草树枝"><br>
-      <b>🌿 海草树枝</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-boot.png" width="130" alt="钓上的靴子"><br>
-      <b>👢 钓上的靴子</b>
-    </td>
-    <td align="center" width="25%">
-      <img src="docs/readme/loot-thunder.png" width="130" alt="雷电跃起"><br>
-      <b>⚡ 雷电跃起</b>
-    </td>
+    <td align="center" width="25%"><img src="docs/readme/loot-blindfold.png" width="120" alt="眼罩"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-branches.png" width="120" alt="树枝"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-boot.png" width="120" alt="靴子"></td>
+    <td align="center" width="25%"><img src="docs/readme/loot-thunder.png" width="120" alt="雷电"></td>
   </tr>
 </table>
 
@@ -147,6 +123,8 @@ XY Pet 是桌面上那只小鲸鱼：
 
 无论你是否擅长写代码，只要你愿意折腾，整套系统所有模块均已解耦为纯数据契约。
 
+- **自定义主题色（Accent Color）**：支持在设置面板中自定义宠物的高亮主题色，适配你的桌面壁纸与个性风格。
+- **手势动作作用完全自由映射**：长按（默认 0.5s 录音）与双击（默认打开网页端）的作用可以独立按需重载，自由绑定为「系统语音录入」、「打开最近会话详情」、「打开 Harness 网页端」或「无动作」。
 - **海量兼容 Petdex 皮肤包**：设置里直接选择 ZIP 即可导入 [Petdex](https://petdex.dev/) v1 / v2 宠物包，社区数千只精灵图即拖即用。
 - **原生 6 态主题制作**：支持按 [`schemas/theme.schema.json`](./schemas/theme.schema.json) 和[主题制作指南](./docs/theme-authoring.md)自己画一套专属 6 态动作包。
 - **可插拔语音转写引擎（`VoiceTranscriber`）**：除了系统原生转写，开发者可通过标准接口编写 Provider，接入本地 Whisper（如 whisper.cpp / faster-whisper）或私有 ASR 模型。
@@ -196,7 +174,7 @@ dsh plugin --profile web add xy-deepseek-sounds
 - **语音输入**：长按小鲸鱼 `0.5` 秒（形变后说话），松开后文字上屏，回车发送；
 - **气泡交互**：单击气泡打字，审批直接点击「本次允许 / 拒绝」；
 - **右键菜单**：打开 Harness、回复最近会话、打开设置、重新连接或关闭桌宠；
-- **偏好设置**：位于 **设置 > 插件 > 桌面宠物**（主题选择、缩放大小、追鼠标、抛掷阻力、手势映射、提示音通道与 ZIP 导入）。
+- **偏好设置**：位于 **设置 > 插件 > 桌面宠物**（主题选择、主题色定制、缩放大小、追鼠标、抛掷阻力、手势作用自由映射、提示音通道与 ZIP 导入）。
 
 ---
 
