@@ -74,7 +74,8 @@ Get routine tasks and approvals done in 5–10 seconds without hunting for brows
 - **Floating Session Bubbles & Approvals**: Keeps up to 3 active session bubbles. When the Agent needs permissions or asks a question, actionable "Allow once / Reject" buttons pop up directly on your desktop.
 
 <p align="center">
-  <img src="docs/readme/选择.png" width="460" alt="Inline approval and choice inside the bubble">
+  <img src="docs/readme/选择.png" width="400" alt="Scenario 1: Agent question with inline choice selection">
+  <img src="docs/readme/权限.png" width="400" alt="Scenario 2: Tool permission intercept with allow once / reject">
 </p>
 
 - **Customizable Shortcuts & Gestures**: Global shortcut `Cmd+Shift+P` is fully rebindable. Long-press and double-click can independently map to "Voice Dictation", "Open Latest Chat", "Open Harness Web GUI", or "No Action".
@@ -97,7 +98,13 @@ Not a lifeless widget, but a responsive desktop companion that synchronizes with
 </p>
 
 - **Real Dive to Signal Work (No Frozen Screens)**: When an Agent task starts, the whale dives into the water; during tool execution, it stays underwater working so you always know it's actively processing.
-- **Whale Call & 0.1% Rare Chest Drop**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs (fries, eyepatch, branch, boot); an immutable `0.1%` rare treasure chest is hardcoded into the runtime.
+- **Whale Call & Random Souvenir Loot Pool**: Surfaces with a cheerful, crisp whale call upon task completion. Regular runs bring back random souvenirs (fries, holy sword, terminator shades, eyepatch, branch, boot).
+- **Immutable 0.1% Rare Chest Drop**: An immutable `0.1%` rare treasure chest jackpot is hardcoded into the runtime, ensuring true randomness that cannot be tampered with by custom theme packs.
+
+<p align="center">
+  <img src="docs/readme/loot-showcase.png" width="820" alt="Loot gallery: random items retrieved upon surfacing, including the 0.1% rare chest">
+</p>
+
 - **Pointer Chasing & Throw Physics**: Enable pointer chasing to have the whale swim toward your cursor; fling it across the screen and watch it bounce off display boundaries with smooth inertia.
 - **Sleep & Squash Tactility**: Idles into sleep mode after 10 minutes of inactivity; squashes down on press. Freely scalable from 20% to 200%.
 
