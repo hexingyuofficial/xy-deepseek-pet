@@ -6,8 +6,8 @@ describe('desktop approval UI coverage', () => {
   const source = readFileSync(fileURLToPath(new URL('./renderer.ts', import.meta.url)), 'utf8')
 
   it('keeps approval actions in both expanded details and the compact bubble', () => {
-    expect(source).toContain("if (session.approval) {\n        const actions = createApprovalActions(session)")
-    expect(source).toContain('if (session.approval) bubble.append(createApprovalActions(session))')
+    expect(source).toMatch(/if \(session\.approval\) \{\s*const actions = createApprovalActions\(session\)/)
+    expect(source).toMatch(/if \(session\.approval\)\s*bubble\.append\(createApprovalActions\(session\)\)/)
   })
 
   it('keeps both approval outcomes wired to the bridge', () => {

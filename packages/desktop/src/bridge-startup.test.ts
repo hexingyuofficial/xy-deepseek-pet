@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { join } from 'node:path'
 import { bridgeFileForStartup, bridgeFileFromArgs, finderComposePathsFromArgs } from './bridge-startup.js'
 
 describe('desktop bridge startup discovery', () => {
@@ -21,7 +22,7 @@ describe('desktop bridge startup discovery', () => {
 
   it('falls back to the standard per-user bridge file', () => {
     expect(bridgeFileForStartup(['electron'], {}, '/Users/example'))
-      .toBe('/Users/example/.xy-deepseek-pet/bridge.json')
+      .toBe(join('/Users/example', '.xy-deepseek-pet', 'bridge.json'))
   })
 
   it('accepts only bounded absolute Finder compose paths after the explicit marker', () => {

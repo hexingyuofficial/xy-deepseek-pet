@@ -25,7 +25,7 @@ describe('hold-to-record pointer coverage', () => {
   })
 
   it('waits for the recorder final chunk before closing microphone tracks', () => {
-    const finish = renderer.match(/async function finishVoiceRecording[\s\S]*?\n}\n\nfunction stateLabel/)?.[0]
+    const finish = renderer.match(/async function finishVoiceRecording[\s\S]*?\r?\n}\r?\n\r?\nfunction stateLabel/)?.[0]
     expect(finish).toBeDefined()
     expect(finish).toContain('recording.recorder.requestData()')
     expect(finish!.indexOf('const blob = await recording.stopped')).toBeLessThan(finish!.indexOf('recording.stream.getTracks().forEach'))

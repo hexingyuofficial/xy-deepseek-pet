@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { join, sep } from 'node:path'
 import { fileQuickActionPackageRoot, finderQuickActionDocument, finderQuickActionInfo, windowsSendToArguments } from './finder-quick-action.js'
 
 describe('Finder Quick Action', () => {
@@ -23,7 +24,8 @@ describe('Finder Quick Action', () => {
   })
 
   it('resolves package roots before writing launch commands', () => {
-    expect(fileQuickActionPackageRoot('./packages/harness-plugin')).toMatch(/^\//)
-    expect(fileQuickActionPackageRoot('./packages/harness-plugin')).toContain('/packages/harness-plugin')
+    const root = fileQuickActionPackageRoot('./packages/harness-plugin')
+    expect(root).toContain(`${sep}packages${sep}harness-plugin`)
+    expect(root).toBe(join(process.cwd(), 'packages', 'harness-plugin'))
   })
 })

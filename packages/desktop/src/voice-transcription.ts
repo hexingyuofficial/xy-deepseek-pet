@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, win32 } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import { MAX_VOICE_WAV_BYTES } from './voice-audio.js'
 
 export type VoiceLanguage = 'system' | 'zh-CN' | 'en-US'
@@ -24,8 +24,8 @@ interface SpeechCommand {
 
 export function systemSpeechCommand(platform: NodeJS.Platform, resourceRoot: string, audioPath: string, language: VoiceLanguage, resultPath?: string): SpeechCommand {
   if (platform === 'darwin') {
-    const helperApp = join(resourceRoot, 'voice', 'XY DeepSeek Pet Speech.app')
-    const helper = join(helperApp, 'Contents', 'MacOS', 'xy-speech-macos')
+    const helperApp = posix.join(resourceRoot, 'voice', 'XY DeepSeek Pet Speech.app')
+    const helper = posix.join(helperApp, 'Contents', 'MacOS', 'xy-speech-macos')
     if (!resultPath) throw new Error('A private speech result path is required on macOS.')
     return { command: '/usr/bin/open', args: ['-W', '-n', '-g', '-a', helperApp, '--args', audioPath, language, resultPath], makeExecutable: helper, resultPath }
   }
