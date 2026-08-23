@@ -8,15 +8,6 @@
   中文 · <a href="./README.en.md">English</a>
 </p>
 
-<p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.1.1-4EA8FF?style=flat-square">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square">
-  <img alt="node" src="https://img.shields.io/badge/Node.js-22%2B-43853d?style=flat-square">
-  <img alt="harness" src="https://img.shields.io/badge/Harness-0.1.0--rc.6-1688f8?style=flat-square">
-  <img alt="macos" src="https://img.shields.io/badge/macOS-verified-111827?style=flat-square">
-  <img alt="windows" src="https://img.shields.io/badge/Windows-source%20ready-111827?style=flat-square">
-  <img alt="petdex" src="https://img.shields.io/badge/Petdex-v1%20%2F%20v2-7c3aed?style=flat-square">
-</p>
 
 <p align="center">
   <b>非官方、开源的 DeepSeek Harness 桌面伴随与开放交互底座。</b><br>
@@ -33,17 +24,14 @@
   <a href="#二开指南">二开指南</a>
 </p>
 
-<p align="center">
-  <img src="docs/readme/gallery.png" alt="小鲸鱼待机、睡觉、游走、下潜、按扁和失败动作预览" width="720">
-</p>
 
 ---
 
 ## 为什么做它
 
-一句话：**在单屏做音乐、写文档或写代码时，不再为了看一眼进度、说两句话或点个审批而频繁全屏切大窗。**
+**在全屏工作时不再为了看一眼进度、说两句话或点个审批而频繁全屏切大窗。** 一个好用好玩实用的dsh桌面小宠物。
 
-当你沉浸在 DAW（如 REAPER）里整理音频轨道、在编辑器里写代码，或在飞书里写文档时，偶尔需要叫 Agent 跑一步或改个东西。过去你需要切到全屏网页端，打完字再切回来，心流被反复打断。
+当你沉浸在编辑器里写代码，写文档时，偶尔需要叫 Agent 跑一步或改个东西。过去你需要切到全屏网页端，打完字再切回来，心流被反复打断。
 
 XY Pet 是桌面上那只小鲸鱼：
 - 随时用 `Cmd+Shift+P` 唤出到光标旁；
