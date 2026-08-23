@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/readme/demo.gif" width="220" alt="小鲸鱼待机、游走、按扁、下潜思考，再衔着薯条浮上来">
+  <img src="docs/readme/demo.gif" width="220" alt="小鲸鱼待机、游走、按扁、下潜思考，再衔着战利品浮上来">
 </p>
 
 <h1 align="center">XY DeepSeek Pet</h1>
@@ -19,161 +19,156 @@
 </p>
 
 <p align="center">
-  非官方、开源的 DeepSeek Harness 桌面宠物。<br>
-  它能在桌面上把事情做完，也会追着你玩，还能换成你自己的皮肤。
+  <b>非官方、开源的 DeepSeek Harness 桌面伴随与开放交互底座。</b><br>
+  主打「好用（方便）、好玩（有趣）、开放（可组装）」：开箱即用，同时也为所有愿意折腾的极客与创作者留足自由定制的接口。
 </p>
 
 <p align="center">
-  <a href="#实用宠物">实用</a> ·
-  <a href="#趣味宠物">趣味</a> ·
-  <a href="#开放宠物">开放</a> ·
+  <a href="#为什么做它">为什么做它</a> ·
+  <a href="#好用方便省心">好用</a> ·
+  <a href="#好玩有趣鲜活">好玩</a> ·
+  <a href="#开放自由折腾">开放</a> ·
   <a href="#安装">安装</a> ·
-  <a href="#使用">使用</a> ·
-  <a href="#开发">开发</a>
+  <a href="#使用与手势">使用</a> ·
+  <a href="#二开指南">二开指南</a>
 </p>
 
 <p align="center">
   <img src="docs/readme/gallery.png" alt="小鲸鱼待机、睡觉、游走、下潜、按扁和失败动作预览" width="720">
 </p>
 
-## 它是什么
+---
 
-一句话：一只跟着真实 Harness 任务活着的小鲸鱼。
+## 为什么做它
 
-任务一开始，它会扎进水里思考；工具在跑，它就停在水下；问你问题或等你审批时，气泡会顶到前面。你可以直接回原会话、在气泡里点“本次允许 / 拒绝”，或长按鲸鱼用系统语音输入回复。做完之后，它再浮上来，嘴里可能衔着完全不同的东西。
+一句话：**在单屏做音乐、写文档或写代码时，不再为了看一眼进度、说两句话或点个审批而频繁全屏切大窗。**
 
-它不是浏览器里的装饰图，也不是只能换皮肤的摆件。竞争力就三件事：
+当你沉浸在 DAW（如 REAPER）里整理音频轨道、在编辑器里写代码，或在飞书里写文档时，偶尔需要叫 Agent 跑一步或改个东西。过去你需要切到全屏网页端，打完字再切回来，心流被反复打断。
 
-| 它是 | 你得到的 |
-| --- | --- |
-| 实用宠物 | 回复、审批、打开页面、做成桌面入口，都不用先去找浏览器窗口 |
-| 趣味宠物 | 追鼠标、被甩出去、真下潜，上来还可能衔着薯条或宝箱 |
-| 开放宠物 | 换皮肤、换音效、换快捷方式图标，并兼容 [Petdex](https://petdex.dev/) |
+XY Pet 是桌面上那只小鲸鱼：
+- 随时用 `Cmd+Shift+P` 唤出到光标旁；
+- 长按 0.5 秒直接用本机系统语音输入；
+- 遇到审批直接在气泡里点「允许 / 拒绝」；
+- 用完随时关闭，主工作台无需让路。
 
-桌宠只展示公开助手文字，以及“思考中 / 调用工具 / 等待回答 / 等待审批”。隐藏的 `reasoning-delta`、完整对话、原始工具参数、审批理由和桥接凭据都不会出桌面桥。
+| 核心维度 | 你的体验 |
+| :--- | :--- |
+| **好用（方便）** | 单屏免切大窗，快捷键随叫随到，长按 0.5s 原生语音输入，气泡内单步审批 |
+| **好玩（有趣）** | 真实下潜作业防假死，按扁形变，甩飞碰撞，完成一声鲸叫，随机战利品与 0.1% 罕见宝箱 |
+| **开放（折腾）** | 换皮肤（兼容 Petdex）、换语音模型（`VoiceTranscriber`）、换提示音，Agent 还能一句话帮你改 |
 
-## 实用宠物
+> 🔒 **纯本地安全底线**：全部运行在用户本机，无外部云端中转；进程间仅绑定 `127.0.0.1` 环回临时凭据；本地语音识别录完即删；隐藏思维链（`reasoning-delta`）与私密 Token 不出桌面；主题包仅解析静态图片与 JSON，不执行任何外部脚本。
 
-事情在桌面上就能做完。
+---
 
-<p align="center">
-  <img src="docs/readme/useful.png" alt="回复、审批、打开页面和桌面快捷方式" width="820">
-</p>
+## 好用（方便省心）
 
-- **回原会话**：最多三个会话气泡。点开就能打字，`Enter` 发送，`Shift+Enter` 换行。回复会回到对应会话，不用先翻网页标签。
-- **在气泡里做选择**：提问会明确提示；审批可以直接点“本次允许 / 拒绝”。不必为了一个确认跳回页面。
-- **系统语音输入**：默认长按 `0.5` 秒开始录音，松开后把识别文字放进最近会话的回复框；双击默认打开 Harness。两种手势都能在“交互动作”中独立改成“录音”“打开最近会话详情”“打开 Harness”或“无动作”。双击录音时，再双击或点击发送即可停止；识别结果始终先供确认，不会自动发送。
-- **桌面快捷方式**：设置里可创建一个同时拉起 Harness、网页和桌宠的入口。图标可用默认小鲸鱼，也可以换成自己的 PNG。
-
-侧边栏的“打开桌宠 / 关闭桌宠”是真开关。只关桌宠不会停掉 Harness。
-
-## 趣味宠物
-
-它会玩，而且玩的是真实任务状态，不是循环播放一张待机图。
+事情在桌面上 5–10 秒内就能干脆利落地做完。
 
 <p align="center">
-  <img src="docs/readme/playful.png" alt="追鼠标、抛掷惯性、下潜思考和完成战利品" width="820">
+  <img src="docs/readme/长按语音输入.png" width="400" alt="长按 0.5 秒触发系统语音录入与物理压扁反馈">
+  <img src="docs/readme/打字对话.png" width="400" alt="伴随气泡展开与快速打字交互">
 </p>
 
-- **追着鼠标跑**：打开后会跟着指针走，速度可调。你去点它、拖它或回消息时，会先停下来。
-- **可以被甩出去**：快速拖再松手会带着惯性滑出去，只在当前屏幕里反弹。阻力越高，停得越快。
-- **DeepSeek 时真下潜**：任务一开始就扎进水里，不是换一张静止图。工具调用时也停在水下。
-- **每次上来带的东西不一样**：常规完成会均分薯条、眼罩、树枝、靴子等战利品。宝箱是单独奖池，固定 `0.1%`，也就是大约一千次完成里会有一次。这个概率写死在运行时里，主题包改不了。
+- **系统级语音即开即用**：长按 `0.5` 秒开始录音，小鲸鱼会呈现被按扁的物理触感反馈；松开后文字直接上屏进最近会话回复框，人工确认后再按回车发送，绝不自动误发。直接调用本机系统自带原生语音识别（macOS Speech Framework / Windows 语言包），**零配置、零 API 成本、极低延迟**。
+- **气泡快捷交互与审批**：最多展示 3 个活跃会话气泡。点开即可打字；当 Agent 遇到权限阻断或选项提问时，气泡直接弹出「本次允许 / 拒绝」按钮，点选即走，无需切回网页端。
 
 <p align="center">
-  <img src="docs/readme/dive.png" alt="从待机下潜思考再带东西浮上来" width="820">
+  <img src="docs/readme/选择.png" width="460" alt="气泡内即时提问与单步审批（免切网页端）">
+</p>
+
+- **随时自定义快捷键与手势**：全局召唤快捷键 `Cmd+Shift+P` 随时可改可关；长按与双击手势可独立配置为「录音」、「打开最近会话详情」、「打开 Harness 网页端」或「无动作」。
+- **一键拉起桌面快捷方式**：设置里可一键生成桌面入口，同时拉起 Harness、网页端与桌面宠物，支持自定义 PNG 图标。
+
+---
+
+## 好玩（有趣鲜活）
+
+它不是死板的静态图标，而是跟着真实任务状态呼吸与动作的桌面伙伴。
+
+<p align="center">
+  <img src="docs/readme/思考中.png" width="400" alt="任务启动：扎入水下潜行思考状态">
+  <img src="docs/readme/出错了.png" width="400" alt="任务异常：受挫动作与失败提示反馈">
 </p>
 
 <p align="center">
-  <img src="docs/readme/loot.png" alt="完成时可能带回的战利品，宝箱为百分之零点一" width="820">
+  <img src="docs/readme/思考结束简略提示.png" width="400" alt="任务完成：气泡文字简报上浮">
+  <img src="docs/readme/结束思考动画（十几个之间抽一个）.png" width="400" alt="结算反馈：浮出水面衔带随机战利品">
 </p>
 
-闲着时它会自己游一会儿；十分钟没人理就会打瞌睡。按一下会被按扁再弹回来。大小可在 20% 到 200% 之间调。
+- **任务状态真实下潜（拒绝假死）**：任务一开始小鲸鱼就一头扎进水里潜行思考；工具在跑时持续在水下作业，长耗时任务状态一目了然。
+- **清脆鲸叫与 0.1% 宝箱抽奖**：任务完成时播放一声清脆标志性的鲸鱼叫声；浮出水面时在薯条、眼罩、树枝、靴子等十几种道具中随机抽选。底层更带有固定 `0.1%` 的罕见宝箱掉落机制（写死在运行时中，杜绝作弊）。
+- **鼠标追逐与惯性甩飞**：开启后小鲸鱼会跟着指针游动；鼠标拖拽并快速松手会带着惯性滑出，在当前屏幕边缘弹性碰撞反弹并自然停下。
+- **打瞌睡与形变触感**：闲置 10 分钟无人理会它会自动打瞌睡；按住录音时会被按扁。大小可在 20% 到 200% 自由缩放。
 
-## 开放宠物
+---
 
-默认小鲸鱼只是第一套皮肤。外观、声音、快捷方式图标都是可替换的数据，不是写死在程序里的。
+## 开放（自由折腾）
 
-<p align="center">
-  <img src="docs/readme/open.png" alt="Petdex 皮肤、原生主题、提示音和自定义图标" width="820">
-</p>
+无论你是否擅长写代码，只要你愿意折腾，整套系统所有模块均已解耦为纯数据契约。
 
-- **兼容 Petdex**：设置里选择 ZIP 即可导入 [Petdex](https://petdex.dev/) v1 / v2 宠物包。公开目录收录了数千只宠物；导入时会校验并映射到桌宠状态，不会执行包里的脚本。
-- **也能用原生主题**：从可直接导入的 [`examples/minimal-theme`](./examples/minimal-theme/) 开始，按[主题制作指南](./docs/theme-authoring.md)和 [`schemas/theme.schema.json`](./schemas/theme.schema.json) 做自己的包。
-- **音效可换**：可选的 `xy-deepseek-sounds` 管任务完成、工具成功和工具失败。三路可单独开关，也可导入不超过 10 秒的本地 WAV / MP3 / OGG。不装桌宠也能单独用。
-- **快捷方式图标可换**：宠物皮肤和桌面图标是分开的。换主题不会改快捷方式；快捷方式也可以用自己的 PNG。
+- **海量兼容 Petdex 皮肤包**：设置里直接选择 ZIP 即可导入 [Petdex](https://petdex.dev/) v1 / v2 宠物包，社区数千只精灵图即拖即用。
+- **原生 6 态主题制作**：支持按 [`schemas/theme.schema.json`](./schemas/theme.schema.json) 和[主题制作指南](./docs/theme-authoring.md)自己画一套专属 6 态动作包。
+- **可插拔语音转写引擎（`VoiceTranscriber`）**：除了系统原生转写，开发者可通过标准接口编写 Provider，接入本地 Whisper（如 whisper.cpp / faster-whisper）或私有 ASR 模型。
+- **3 通道提示音自定义**：独立的 `xy-deepseek-sounds` 插件管理任务完成（鲸鱼叫声）、工具成功、工具失败 3 路声音，可导入不超过 10 秒的本地 WAV / MP3 / OGG 音频。
+- **Agent 自主协助配置**：大模型自身通过 `xy_pet` 工具知晓所有配置接口，你可以直接对 Agent 说：“帮我把皮肤换成桌面上的 pikachu.zip”或“把完成提示音换成这个文件”。
 
-主题只含图片和 JSON。不接受脚本、网址或 shell 命令，也不会拦截 Harness 的全局文件拖入。兼容范围见[主题兼容说明](./docs/theme-compatibility.md)。
-
-装好之后，Harness agent 也知道这些接口。你可以直接说“帮我换一个本地宠物包”或“把任务完成提示音换成这个文件”。
+---
 
 ## 安装
 
-需要 DeepSeek Harness `0.1.0-rc.6` 和 Node.js 22 或更高版本。当前走 Harness 的 `web` profile。
+需要 DeepSeek Harness `0.1.0-rc.6` 和 Node.js 22 或更高版本（走 Harness 的 `web` profile）。
 
-1. 如果 `dsh web` 正在运行，先回到启动它的终端按 `Ctrl+C`，等进程退出。
+1. 如果 `dsh web` 正在运行，先回到对应终端按 `Ctrl+C` 退出；
 2. 安装插件：
 
    ```sh
    dsh plugin --profile web add xy-deepseek-pet
    ```
 
-   桌面运行时 `xy-deepseek-desktop` 会自动跟上。第一次还要下载当前平台的 Electron，大约 120-150 MB；终端可能会一段时间只显示 `Downloading Electron binary...`。
-3. 再启动 Harness：
+   桌面运行时 `xy-deepseek-desktop` 会自动跟上。首次安装还会下载对应平台的 Electron 运行环境（约 120–150 MB）。
+
+3. 重新启动 Harness：
 
    ```sh
    dsh web
    ```
 
-侧边栏随后会出现“打开桌宠”。第一次不会自动弹出来，可在“设置 > 插件 > 桌面宠物”里打开“随 Harness 启动”。不要在旧服务还占着 3080 时再开一份 `dsh web`。
+启动后侧边栏会出现「打开桌宠」。首次安装可在「设置 > 插件 > 桌面宠物」中开启「随 Harness 启动」。
 
-提示音是可选的：
+提示音扩展为可选插件：
 
 ```sh
 dsh plugin --profile web add xy-deepseek-sounds
 ```
 
-| 安装内容 | 你会得到什么 |
-| --- | --- |
-| `xy-deepseek-pet` | Cordis Host 桥、Harness 设置页和 Electron 桌宠 |
-| `xy-deepseek-sounds` | 完成 / 工具结果提示音，不安装 Electron |
-| 两者都装 | 声音设置收进“桌面宠物”，不会重复听同一批事件 |
+| 安装内容 | 获得的能力 |
+| :--- | :--- |
+| `xy-deepseek-pet` | Cordis Host 适配桥、Harness 设置页与 Electron 桌面伴随宠物 |
+| `xy-deepseek-sounds` | 任务完成、工具成功与失败 3 通道提示音（不安装 Electron） |
+| 两者都装 | 声音设置自动收纳进「桌面宠物」面板中，无缝融合 |
 
-如果安装日志里错误地出现 `workspace:`，先确认装的是 npm registry 版本，而不是仓库目录或旧 tarball：
+---
 
-```sh
-npm view xy-deepseek-pet@0.1.1 dependencies
-dsh plugin --profile web list xy-deepseek-pet xy-deepseek-desktop
-```
+## 使用与手势
 
-registry 上的 `xy-deepseek-pet@0.1.1` 依赖是普通的 `xy-deepseek-desktop: 0.1.1`，不用改成 `file:`。如果日志明确说 pnpm 拦住了 Electron 的安装脚本，到日志里写的 profile 目录运行 `pnpm approve-builds`，允许 `electron` 后再装一次。
+- **全局唤出**：按下 `Cmd+Shift+P` 将小鲸鱼召唤到光标处；
+- **语音输入**：长按小鲸鱼 `0.5` 秒（形变后说话），松开后文字上屏，回车发送；
+- **气泡交互**：单击气泡打字，审批直接点击「本次允许 / 拒绝」；
+- **右键菜单**：打开 Harness、回复最近会话、打开设置、重新连接或关闭桌宠；
+- **偏好设置**：位于 **设置 > 插件 > 桌面宠物**（主题选择、缩放大小、追鼠标、抛掷阻力、手势映射、提示音通道与 ZIP 导入）。
 
-### GitHub 离线包
+---
 
-每个版本的 [GitHub Releases](https://github.com/hexingyuofficial/xy-deepseek-pet/releases) 也提供三个 npm tarball 和 `SHA256SUMS`。普通用户优先使用上面的 Harness 安装命令；离线包用于没有 registry 访问、固定版本或排查安装问题的场景：
+## 平台支持状态
 
-```sh
-dsh plugin --profile web add ./xy-deepseek-pet-0.1.1.tgz
-dsh plugin --profile web add ./xy-deepseek-sounds-0.1.1.tgz  # 可选
-```
+- **macOS**：源码构建、npm 安装与桌面全流程交互均已完整验证；
+- **Windows**：共用同一套 Electron 源码，安装启动与自动化测试已就绪，语音交互全流程走查中；
+- v0.1.1 为开源轻量扩展，未签名公证，暂不提供独立 `.dmg` / `.msi` 安装包，请通过 `dsh plugin` 标准方式安装。
 
-桌面包由主插件自动安装；只有离线安装提示缺少桌面包时，才先安装 `xy-deepseek-desktop-0.1.1.tgz`。发布包未签名或公证，暂不提供 `.dmg` / `.msi` / `.exe` 安装器。
+---
 
-## 使用
-
-- 侧边栏开关桌宠；关桌宠不等于关 Harness。
-- 单击气泡回复；审批按钮就在气泡里。
-- 右键：打开 Harness、回复最近会话、打开设置、重新连接或关掉桌宠。
-- 所有偏好都在 **设置 > 插件 > 桌面宠物**：主题、缩放、游动、追鼠标、抛掷阻力、全屏时是否显示、导入 ZIP、桌面快捷方式。
-- 选 ZIP 后会先验证再启用。
-
-## 平台状态
-
-- macOS：源码构建、npm tarball 干净安装和桌面进程启动已验证。
-- Windows：共用同一套 Electron 源码；安装升级、桌面进程启动和 Harness 健康状态已在 Windows 测试，语音输入仍待真机验证。
-- 0.1.1 未签名、未公证，也没有独立的 `.dmg`、`.msi` 或 `.exe`。系统若拦截未知应用，请走 npm / Harness 安装，不要绕过来源不明的安全警告。
-
-## 开发
+## 开发与二次开发
 
 ```sh
 pnpm install --frozen-lockfile
@@ -183,15 +178,22 @@ pnpm verify
 ```
 
 ```sh
+# 本地调试桌面伴随进程
 pnpm --filter xy-deepseek-desktop start
 pnpm --filter xy-deepseek-desktop dev -- --demo-error
 pnpm --filter xy-deepseek-desktop dev -- --demo-approval
 ```
 
-更细的说明在[架构](./docs/architecture.md)、[Cordis 集成](./docs/cordis-integration.md)和[插件 API](./docs/plugin-api.md)。
+详细技术架构与协议文档：
+- [架构设计（Architecture）](./docs/architecture.md)
+- [Cordis 插件集成（Cordis Integration）](./docs/cordis-integration.md)
+- [插件与 Agent 工具 API（Plugin API）](./docs/plugin-api.md)
+- [主题制作指南（Theme Authoring）](./docs/theme-authoring.md)
 
-## 开源与安全
+---
 
-代码使用 [MIT License](./LICENSE)。默认鲸鱼和内置声音的来源、许可与哈希记在各自的 provenance 文件里。主题和菜单扩展都是数据接口。安全问题请按 [SECURITY.md](./SECURITY.md) 私下报告。
+## 开源协议与声明
 
-本项目与 DeepSeek 无隶属、合作或背书关系；DeepSeek 名称及相关标识归其权利人所有。
+代码采用 [MIT License](./LICENSE) 开源。
+
+本项目为非官方开源扩展，与 DeepSeek 无官方隶属、合作或背书关系。DeepSeek 名称及相关标识归其权利人所有。
